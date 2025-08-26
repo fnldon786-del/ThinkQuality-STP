@@ -17,6 +17,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [showDashboardSelection, setShowDashboardSelection] = useState(false)
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -32,7 +33,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] Login form submitted")
+    console.log("[v0] Login form submitted with username:", username)
     setIsLoading(true)
     setError(null)
 
@@ -40,13 +41,14 @@ export default function LoginPage() {
       if (username === "Stpadmin" && password === "12345678") {
         console.log("[v0] Super admin login attempt")
 
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: "admin@stp.com",
           password: "12345678",
         })
 
-        if (signInError) {
+        if (signInError && signInError.message.includes("Invalid login credentials")) {
           console.log("[v0] Super admin user doesn't exist, creating...")
+
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email: "admin@stp.com",
             password: "12345678",
@@ -56,16 +58,19 @@ export default function LoginPage() {
           })
 
           if (signUpError) {
+            console.error("[v0] Sign up error:", signUpError)
             throw signUpError
           }
 
           if (signUpData.user) {
+            console.log("[v0] Creating super admin profile...")
             const { error: profileError } = await supabase.from("profiles").insert({
               id: signUpData.user.id,
               username: "Stpadmin",
               role: "SuperAdmin",
               full_name: "Super Administrator",
               company_name: "STP Engineering",
+              email: "admin@stp.com",
             })
 
             if (profileError) {
@@ -73,21 +78,29 @@ export default function LoginPage() {
             }
           }
 
+          // Try signing in again
           const { data: retrySignIn, error: retryError } = await supabase.auth.signInWithPassword({
             email: "admin@stp.com",
             password: "12345678",
           })
 
           if (retryError) {
+            console.error("[v0] Retry sign in error:", retryError)
             throw retryError
           }
+          signInData = retrySignIn
+        } else if (signInError) {
+          console.error("[v0] Sign in error:", signInError)
+          throw signInError
         }
 
-        console.log("[v0] Super admin login successful, redirecting to /admin")
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        router.push("/admin")
+        console.log("[v0] Super admin login successful")
+        setShowDashboardSelection(true)
+        setIsLoading(false)
         return
       }
+
+      console.log("[v0] Regular user login attempt for:", username)
 
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
@@ -96,6 +109,7 @@ export default function LoginPage() {
         .single()
 
       if (profileError || !profiles) {
+        console.error("[v0] Profile lookup error:", profileError)
         throw new Error("Invalid username or password")
       }
 
@@ -105,16 +119,14 @@ export default function LoginPage() {
       })
 
       if (authError) {
+        console.error("[v0] Auth error:", authError)
         throw new Error("Invalid username or password")
       }
 
       console.log("[v0] Login successful, redirecting based on role:", profiles.role)
 
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
       switch (profiles.role) {
         case "Admin":
-        case "SuperAdmin":
           router.push("/admin")
           break
         case "Technician":
@@ -129,9 +141,13 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error("[v0] Login error:", err)
       setError(err.message || "Login failed. Please try again.")
-    } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleDashboardSelection = (dashboard: string) => {
+    console.log("[v0] Super admin selected dashboard:", dashboard)
+    router.push(`/${dashboard}`)
   }
 
   if (!mounted) {
@@ -145,14 +161,69 @@ export default function LoginPage() {
     )
   }
 
+  if (showDashboardSelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-xl">
+            <CardHeader className="text-center space-y-4">
+              <Logo size="lg" showText={false} />
+              <div>
+                <CardTitle className="text-2xl font-bold text-gray-900">Select Dashboard</CardTitle>
+                <CardDescription className="text-gray-600">Choose which dashboard to access</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                onClick={() => handleDashboardSelection("admin")}
+                className="w-full h-12 text-left justify-start"
+                variant="outline"
+              >
+                <div>
+                  <div className="font-medium">Admin Dashboard</div>
+                  <div className="text-sm text-muted-foreground">Manage users, settings, and system overview</div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => handleDashboardSelection("technician")}
+                className="w-full h-12 text-left justify-start"
+                variant="outline"
+              >
+                <div>
+                  <div className="font-medium">Technician Dashboard</div>
+                  <div className="text-sm text-muted-foreground">Job cards, SOPs, and maintenance tasks</div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => handleDashboardSelection("customer")}
+                className="w-full h-12 text-left justify-start"
+                variant="outline"
+              >
+                <div>
+                  <div className="font-medium">Customer Dashboard</div>
+                  <div className="text-sm text-muted-foreground">Service requests and reports</div>
+                </div>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <span>Powered by ThinkQuality</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <Card className="shadow-xl">
           <CardHeader className="text-center space-y-4">
-            <Logo />
+            <Logo size="lg" showText={false} />
             <div>
-              <CardTitle className="text-2xl font-bold text-gray-900">ThinkQuality</CardTitle>
               <CardDescription className="text-gray-600">Sign in to your account</CardDescription>
             </div>
           </CardHeader>

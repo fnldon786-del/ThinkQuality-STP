@@ -16,8 +16,8 @@ export function Logo({ size = "md", showText = true, customLogo, customName }: L
 
   const sizeClasses = {
     sm: "w-6 h-6",
-    md: "w-8 h-8",
-    lg: "w-12 h-12",
+    md: "w-10 h-10", // Made medium size bigger
+    lg: "w-16 h-16", // Made large size much bigger
   }
 
   const textSizeClasses = {
@@ -27,7 +27,7 @@ export function Logo({ size = "md", showText = true, customLogo, customName }: L
   }
 
   const logoSrc = customLogo || "/images/stp-logo.png"
-  const brandName = customName || "ThinkQuality"
+  const brandName = customName // Only show custom name if provided, don't default to ThinkQuality
 
   // Use placeholder if image failed to load
   const finalImageSrc = imageError ? "/generic-company-logo.png" : logoSrc
@@ -55,7 +55,7 @@ export function Logo({ size = "md", showText = true, customLogo, customName }: L
           priority={size === "lg"}
         />
       </div>
-      {showText && <h1 className={`${textSizeClasses[size]} font-bold text-foreground`}>{brandName}</h1>}
+      {showText && brandName && <h1 className={`${textSizeClasses[size]} font-bold text-foreground`}>{brandName}</h1>}
     </div>
   )
 }

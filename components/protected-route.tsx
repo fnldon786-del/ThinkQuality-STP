@@ -48,7 +48,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         console.log("[v0] ProtectedRoute: Looking up profile for user:", user.id)
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role, email, username") // Added username to select
+          .select("role, email, username")
           .eq("id", user.id)
           .single()
 
@@ -56,6 +56,21 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
         if (profileError) {
           console.log("[v0] ProtectedRoute: Profile error:", profileError.message)
+
+          // Special handling for super admin when profiles table doesn't exist
+          if (user.email === "admin@stp.com" && profileError.code === "PGRST205") {
+            console.log("[v0] ProtectedRoute: Super admin detected, allowing access despite missing profiles table")
+            // Create a temporary profile for super admin
+            const tempProfile: Profile = {
+              role: "SuperAdmin",
+              email: user.email,
+              username: "Stpadmin",
+            }
+            setProfile(tempProfile)
+            setLoading(false)
+            return
+          }
+
           router.push("/auth/login")
           return
         }

@@ -29,6 +29,7 @@ interface IncompleteJobsListProps {
 export function IncompleteJobsList({ role, userId, limit = 5 }: IncompleteJobsListProps) {
   const [incompleteJobs, setIncompleteJobs] = useState<IncompleteJob[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export function IncompleteJobsList({ role, userId, limit = 5 }: IncompleteJobsLi
 
   const loadIncompleteJobs = async () => {
     setIsLoading(true)
+    setHasError(false)
 
     try {
       const today = new Date()
@@ -47,7 +49,6 @@ export function IncompleteJobsList({ role, userId, limit = 5 }: IncompleteJobsLi
         .order("due_date", { ascending: true })
         .limit(limit)
 
-      // Apply role-based filtering
       if (role === "Technician") {
         query = query.or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
       } else if (role === "Customer") {
@@ -58,6 +59,10 @@ export function IncompleteJobsList({ role, userId, limit = 5 }: IncompleteJobsLi
 
       if (error) {
         console.error("Error loading incomplete jobs:", error)
+        if (error.code === "PGRST205" || error.message?.includes("Could not find the table")) {
+          console.log("[v0] Job cards table not found, showing setup message")
+          setHasError(true)
+        }
       } else if (data) {
         const processedJobs = data
           .map((job) => ({
@@ -70,6 +75,7 @@ export function IncompleteJobsList({ role, userId, limit = 5 }: IncompleteJobsLi
       }
     } catch (error) {
       console.error("Error loading incomplete jobs:", error)
+      setHasError(true)
     } finally {
       setIsLoading(false)
     }
@@ -131,6 +137,27 @@ export function IncompleteJobsList({ role, userId, limit = 5 }: IncompleteJobsLi
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-16 bg-muted rounded"></div>
             ))}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (hasError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            Incomplete Jobs
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <p className="text-muted-foreground mb-2">Database setup required</p>
+            <p className="text-sm text-muted-foreground">
+              Please run the database scripts to set up the job cards table.
+            </p>
           </div>
         </CardContent>
       </Card>

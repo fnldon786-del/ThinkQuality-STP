@@ -101,7 +101,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       <header className="border-b bg-card shadow-sm">
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center space-x-4">
-            <Logo size="md" showText={true} customLogo={company?.logo_url} customName={company?.name} />
+            <Logo size="md" showText={false} customLogo={company?.logo_url} />
+            {company?.name && <h1 className="text-xl font-bold text-foreground">{company.name}</h1>}
             {profile && (
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(profile.role)}`}>
                 {profile.role}
