@@ -9,7 +9,12 @@ export default function Loading() {
       </div>
 
       <div className="h-32 bg-muted rounded animate-pulse" />
-      <div className="h-96 bg-muted rounded animate-pulse" />
+
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-32 bg-muted rounded animate-pulse" />
+        ))}
+      </div>
     </div>
   )
 }

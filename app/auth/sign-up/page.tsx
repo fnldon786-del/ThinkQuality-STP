@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import Image from "next/image"
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
+    username: "",
     email: "",
-    username: "", // Added username field
     password: "",
     confirmPassword: "",
     fullName: "",
@@ -44,6 +45,11 @@ export default function SignUpPage() {
       return
     }
 
+    if (!formData.username) {
+      setError("Username is required")
+      return
+    }
+
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
@@ -56,7 +62,8 @@ export default function SignUpPage() {
         .single()
 
       if (existingUser) {
-        throw new Error("Username already exists")
+        setError("Username already exists. Please choose a different username.")
+        return
       }
 
       const { error } = await supabase.auth.signUp({
@@ -65,8 +72,8 @@ export default function SignUpPage() {
         options: {
           emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/auth/login`,
           data: {
+            username: formData.username,
             full_name: formData.fullName,
-            username: formData.username, // Include username in metadata
             role: formData.role,
             company_name: formData.companyName,
             phone: formData.phone,
@@ -88,8 +95,8 @@ export default function SignUpPage() {
       <div className="w-full max-w-md">
         <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-sm">
           <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-primary rounded-xl flex items-center justify-center">
-              <span className="text-2xl font-bold text-primary-foreground">TQ</span>
+            <div className="mx-auto w-20 h-20 relative">
+              <Image src="/images/stp-logo.png" alt="STP Engineering" fill className="object-contain" />
             </div>
             <div>
               <CardTitle className="text-2xl font-bold text-foreground">Create Account</CardTitle>
@@ -113,6 +120,18 @@ export default function SignUpPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Choose a unique username"
+                  value={formData.username}
+                  onChange={(e) => handleInputChange("username", e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
                 <Input
                   id="fullName"
@@ -120,18 +139,6 @@ export default function SignUpPage() {
                   placeholder="Enter your full name"
                   value={formData.fullName}
                   onChange={(e) => handleInputChange("fullName", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Choose a username"
-                  value={formData.username}
-                  onChange={(e) => handleInputChange("username", e.target.value)}
                   required
                 />
               </div>

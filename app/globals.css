@@ -38,6 +38,7 @@
   --sidebar-accent-foreground: oklch(0.25 0.02 240);
   --sidebar-border: oklch(0.9 0.01 240);
   --sidebar-ring: oklch(0.45 0.15 220);
+  --font-inter: "Inter", sans-serif;
 }
 
 .dark {
@@ -73,9 +74,12 @@
   --sidebar-accent-foreground: oklch(0.95 0.005 240);
   --sidebar-border: oklch(0.18 0.01 240);
   --sidebar-ring: oklch(0.65 0.15 220);
+  --font-inter: "Inter", sans-serif;
 }
 
 @theme inline {
+  /* Added Inter font configuration */
+  --font-sans: var(--font-inter);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -119,6 +123,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import type { LucideIcon } from "lucide-react"
 
 interface DashboardTileProps {
@@ -9,9 +10,19 @@ interface DashboardTileProps {
   icon: LucideIcon
   onClick: () => void
   color?: string
+  count?: number
+  urgent?: boolean
 }
 
-export function DashboardTile({ title, description, icon: Icon, onClick, color = "primary" }: DashboardTileProps) {
+export function DashboardTile({
+  title,
+  description,
+  icon: Icon,
+  onClick,
+  color = "primary",
+  count,
+  urgent = false,
+}: DashboardTileProps) {
   const colorClasses = {
     primary: "hover:bg-primary/5 border-primary/20",
     blue: "hover:bg-blue-50 border-blue-200",
@@ -32,7 +43,7 @@ export function DashboardTile({ title, description, icon: Icon, onClick, color =
 
   return (
     <Card
-      className={`cursor-pointer transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} hover:shadow-md`}
+      className={`cursor-pointer transition-all duration-200 ${colorClasses[color as keyof typeof colorClasses]} hover:shadow-md ${urgent ? "ring-2 ring-red-200" : ""}`}
       onClick={onClick}
     >
       <CardContent className="p-6">
@@ -41,7 +52,14 @@ export function DashboardTile({ title, description, icon: Icon, onClick, color =
             <Icon className="h-6 w-6" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-foreground mb-1">{title}</h3>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-foreground">{title}</h3>
+              {count !== undefined && count > 0 && (
+                <Badge variant={urgent ? "destructive" : "secondary"} className="ml-2">
+                  {count}
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
         </div>
