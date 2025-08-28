@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import type { UploadedFile } from "@/types"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import { format } from "date-fns"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
+import { FileUpload } from "@/components/file-upload"
 
 interface Profile {
   id: string
@@ -34,6 +35,7 @@ interface JobCardFormData {
   customer_id: string
   due_date: Date | undefined
   tasks: string[]
+  attachments: UploadedFile[]
 }
 
 interface JobCardFormProps {
@@ -53,6 +55,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     customer_id: "",
     due_date: undefined,
     tasks: [""],
+    attachments: [],
     ...initialData,
   })
   const [technicians, setTechnicians] = useState<Profile[]>([])
@@ -146,6 +149,20 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
         const { error: tasksError } = await supabase.from("job_card_tasks").insert(tasksToInsert)
 
         if (tasksError) throw tasksError
+      }
+
+      if (jobCard && formData.attachments.length > 0) {
+        const attachmentsToInsert = formData.attachments.map((attachment) => ({
+          job_card_id: jobCard.id,
+          file_name: attachment.file_name,
+          file_url: attachment.file_url,
+          file_type: attachment.file_type,
+          uploaded_by: currentUser.id,
+        }))
+
+        const { error: attachmentsError } = await supabase.from("job_card_attachments").insert(attachmentsToInsert)
+
+        if (attachmentsError) throw attachmentsError
       }
 
       onSuccess?.()
@@ -313,6 +330,16 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
                 )}
               </div>
             ))}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Attachments</Label>
+            <FileUpload
+              onFilesUploaded={(files) => setFormData((prev) => ({ ...prev, attachments: files }))}
+              existingFiles={formData.attachments}
+              maxFiles={10}
+              bucketName="job-card-attachments"
+            />
           </div>
 
           {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}

@@ -10,6 +10,7 @@ import type { User } from "@supabase/supabase-js"
 interface Profile {
   role: string
   email: string
+  username: string
 }
 
 interface ProtectedRouteProps {
@@ -47,23 +48,29 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         console.log("[v0] ProtectedRoute: Looking up profile for user:", user.id)
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role, email")
+          .select("role, email, username")
           .eq("id", user.id)
           .single()
 
         console.log("[v0] ProtectedRoute: Profile lookup result:", { profile, error: profileError })
 
         if (profileError) {
-          console.log("[v0] ProtectedRoute: Profile error (might be missing table):", profileError.message)
+          console.log("[v0] ProtectedRoute: Profile error:", profileError.message)
 
-          if (user.email === "admin@stp.com") {
-            console.log("[v0] ProtectedRoute: Super admin detected, allowing access")
-            setProfile({ role: "SuperAdmin", email: user.email })
+          // Special handling for super admin when profiles table doesn't exist
+          if (user.email === "admin@stp.com" && profileError.code === "PGRST205") {
+            console.log("[v0] ProtectedRoute: Super admin detected, allowing access despite missing profiles table")
+            // Create a temporary profile for super admin
+            const tempProfile: Profile = {
+              role: "SuperAdmin",
+              email: user.email,
+              username: "Stpadmin",
+            }
+            setProfile(tempProfile)
             setLoading(false)
             return
           }
 
-          console.log("[v0] ProtectedRoute: No profile found and not super admin, redirecting to login")
           router.push("/auth/login")
           return
         }
@@ -76,16 +83,16 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
         setProfile(profile)
 
-        const isSuperUser = profile.role === "SuperAdmin" || profile.email === "admin@stp.com"
+        const isSuperAdmin = profile.role === "SuperAdmin"
         console.log("[v0] ProtectedRoute: Role check:", {
           userRole: profile.role,
           allowedRoles,
-          isSuperUser,
-          hasAccess: allowedRoles.includes(profile.role) || isSuperUser,
+          isSuperAdmin,
+          hasAccess: allowedRoles.includes(profile.role) || isSuperAdmin,
         })
 
-        // Check if user has required role or is super user
-        if (!allowedRoles.includes(profile.role) && !isSuperUser) {
+        // Check if user has required role or is super admin
+        if (!allowedRoles.includes(profile.role) && !isSuperAdmin) {
           console.log("[v0] ProtectedRoute: Access denied, redirecting to appropriate dashboard")
           // Redirect to appropriate dashboard based on role
           const redirectPath =

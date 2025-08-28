@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { FileUpload } from "@/components/file-upload"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,13 @@ interface SOPStep {
   estimated_minutes: number
 }
 
+interface UploadedFile {
+  file_name: string
+  file_url: string
+  file_type: string
+  file_size: number
+}
+
 interface SOPFormData {
   title: string
   description: string
@@ -45,6 +52,7 @@ interface SOPFormData {
   effective_date: Date | undefined
   review_date: Date | undefined
   steps: SOPStep[]
+  attachments: UploadedFile[]
 }
 
 interface SOPFormProps {
@@ -66,6 +74,7 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
     effective_date: undefined,
     review_date: undefined,
     steps: [{ step_number: 1, title: "", description: "", warning_notes: "", estimated_minutes: 0 }],
+    attachments: [],
     ...initialData,
   })
   const [categories, setCategories] = useState<SOPCategory[]>([])
@@ -200,6 +209,21 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
         const { error: stepsError } = await supabase.from("sop_steps").insert(stepsToInsert)
 
         if (stepsError) throw stepsError
+      }
+
+      if (sop && formData.attachments.length > 0) {
+        const attachmentsToInsert = formData.attachments.map((attachment) => ({
+          sop_id: sop.id,
+          file_name: attachment.file_name,
+          file_url: attachment.file_url,
+          file_type: attachment.file_type,
+          file_size: attachment.file_size,
+          uploaded_by: currentUser.id,
+        }))
+
+        const { error: attachmentsError } = await supabase.from("sop_attachments").insert(attachmentsToInsert)
+
+        if (attachmentsError) throw attachmentsError
       }
 
       onSuccess?.()
@@ -466,6 +490,17 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
                 </div>
               </Card>
             ))}
+          </div>
+
+          {/* Attachments */}
+          <div className="space-y-2">
+            <Label>Attachments</Label>
+            <FileUpload
+              onFilesUploaded={(files) => setFormData((prev) => ({ ...prev, attachments: files }))}
+              existingFiles={formData.attachments}
+              maxFiles={10}
+              bucketName="sop-attachments"
+            />
           </div>
 
           {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}

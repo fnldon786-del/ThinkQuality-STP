@@ -12,8 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { BrandLogo } from "@/components/brand-logo"
-import { PoweredByFooter } from "@/components/powered-by-footer"
+import { Logo } from "./logo"
+import { Footer } from "./footer"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
@@ -26,6 +26,12 @@ interface Profile {
   company_name: string
 }
 
+interface Company {
+  id: string
+  name: string
+  logo_url?: string
+}
+
 interface DashboardLayoutProps {
   children: React.ReactNode
   role: string
@@ -34,6 +40,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [company, setCompany] = useState<Company | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -50,6 +57,18 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
 
         if (profile) {
           setProfile(profile)
+
+          if (profile.company_name) {
+            const { data: companyData } = await supabase
+              .from("companies")
+              .select("*")
+              .eq("name", profile.company_name)
+              .single()
+
+            if (companyData) {
+              setCompany(companyData)
+            }
+          }
         }
       }
     }
@@ -65,6 +84,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const getRoleColor = (role: string) => {
     switch (role) {
       case "Admin":
+      case "SuperAdmin":
         return "bg-red-100 text-red-800"
       case "Technician":
         return "bg-blue-100 text-blue-800"
@@ -81,7 +101,8 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       <header className="border-b bg-card shadow-sm">
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center space-x-4">
-            <BrandLogo size="md" showText={true} />
+            <Logo size="md" showText={false} customLogo={company?.logo_url} />
+            {company?.name && <h1 className="text-xl font-bold text-foreground">{company.name}</h1>}
             {profile && (
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(profile.role)}`}>
                 {profile.role}
@@ -117,7 +138,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       {/* Main Content */}
       <main className="flex-1 p-6">{children}</main>
 
-      <PoweredByFooter />
+      <Footer customLogo={company?.logo_url} customName={company?.name} />
     </div>
   )
 }
