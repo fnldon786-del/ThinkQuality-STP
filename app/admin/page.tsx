@@ -2,28 +2,65 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { DashboardTile } from "@/components/dashboard-tile"
-import { WorkflowMetrics } from "@/components/workflow-metrics"
-import { IncompleteJobsList } from "@/components/incomplete-jobs-list"
-import { createClient } from "@/lib/supabase/client"
-import { Users, FileText, ClipboardCheck, Wrench, BarChart3, Building2, Cpu } from "lucide-react"
+import { WorkflowSummary } from "@/components/workflow-summary"
+import { Users, FileText, ClipboardCheck, Wrench, BarChart3, Settings, Building2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AdminDashboard() {
   const router = useRouter()
-  const [userId, setUserId] = useState<string>("")
-  const supabase = createClient()
+  const [workflowCounts, setWorkflowCounts] = useState({
+    pending: 0,
+    inProgress: 0,
+    onHold: 0,
+    completed: 0,
+    users: 0,
+    companies: 0,
+  })
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        setUserId(user.id)
+    const fetchWorkflowCounts = async () => {
+      const supabase = createClient()
+
+      try {
+        const [
+          { count: pendingRequests },
+          { count: inProgressJobs },
+          { count: onHoldJobs },
+          { count: completedToday },
+          { count: totalUsers },
+          { count: totalCompanies },
+        ] = await Promise.all([
+          supabase.from("job_cards").select("*", { count: "exact", head: true }).eq("status", "pending"),
+          supabase.from("job_cards").select("*", { count: "exact", head: true }).eq("status", "in_progress"),
+          supabase
+            .from("job_cards")
+            .select("*", { count: "exact", head: true })
+            .in("status", ["on_hold", "incomplete"]),
+          supabase
+            .from("job_cards")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "completed")
+            .gte("completed_at", new Date().toISOString().split("T")[0]),
+          supabase.from("profiles").select("*", { count: "exact", head: true }),
+          supabase.from("companies").select("*", { count: "exact", head: true }),
+        ])
+
+        setWorkflowCounts({
+          pending: pendingRequests || 0,
+          inProgress: inProgressJobs || 0,
+          onHold: onHoldJobs || 0,
+          completed: completedToday || 0,
+          users: totalUsers || 0,
+          companies: totalCompanies || 0,
+        })
+      } catch (error) {
+        console.error("Error fetching workflow counts:", error)
       }
     }
-    getUser()
+
+    fetchWorkflowCounts()
   }, [])
 
   const adminTiles = [
@@ -32,6 +69,7 @@ export default function AdminDashboard() {
       description: "Manage users, roles, and permissions",
       icon: Users,
       color: "blue",
+      count: workflowCounts.users,
       onClick: () => router.push("/admin/users"),
     },
     {
@@ -39,20 +77,15 @@ export default function AdminDashboard() {
       description: "Manage companies and organizational structure",
       icon: Building2,
       color: "green",
+      count: workflowCounts.companies,
       onClick: () => router.push("/admin/companies"),
-    },
-    {
-      title: "Machine Management",
-      description: "Manage customer machines and QR codes",
-      icon: Cpu,
-      color: "purple",
-      onClick: () => router.push("/admin/machines"),
     },
     {
       title: "Job Cards",
       description: "View and manage all job cards across the system",
       icon: FileText,
       color: "primary",
+      count: workflowCounts.pending + workflowCounts.inProgress,
       onClick: () => router.push("/admin/job-cards"),
     },
     {
@@ -83,6 +116,13 @@ export default function AdminDashboard() {
       color: "blue",
       onClick: () => router.push("/admin/reports"),
     },
+    {
+      title: "System Settings",
+      description: "Configure system settings and preferences",
+      icon: Settings,
+      color: "primary",
+      onClick: () => router.push("/admin/settings"),
+    },
   ]
 
   return (
@@ -93,25 +133,29 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground mt-2">Manage your ThinkQuality system and oversee all operations</p>
         </div>
 
-        {userId && <WorkflowMetrics role="Admin" userId={userId} />}
+        <WorkflowSummary
+          role="Admin"
+          counts={{
+            pending: workflowCounts.pending,
+            inProgress: workflowCounts.inProgress,
+            onHold: workflowCounts.onHold,
+            completed: workflowCounts.completed,
+          }}
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {adminTiles.map((tile, index) => (
-                <DashboardTile
-                  key={index}
-                  title={tile.title}
-                  description={tile.description}
-                  icon={tile.icon}
-                  color={tile.color}
-                  onClick={tile.onClick}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="lg:col-span-1">{userId && <IncompleteJobsList role="Admin" userId={userId} limit={8} />}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {adminTiles.map((tile, index) => (
+            <DashboardTile
+              key={index}
+              title={tile.title}
+              description={tile.description}
+              icon={tile.icon}
+              color={tile.color}
+              count={tile.count}
+              urgent={tile.title === "Job Cards" && workflowCounts.onHold > 0}
+              onClick={tile.onClick}
+            />
+          ))}
         </div>
       </div>
     </DashboardLayout>

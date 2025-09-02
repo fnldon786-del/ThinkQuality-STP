@@ -17,8 +17,6 @@ export default function ReportsPage() {
   })
   const [reportType, setReportType] = useState("overview")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isDatabaseAvailable, setIsDatabaseAvailable] = useState(true)
   const [metrics, setMetrics] = useState({
     totalJobCards: 0,
     completedJobCards: 0,
@@ -34,112 +32,28 @@ export default function ReportsPage() {
     faultTrends: [],
   })
 
-  const [supabase, setSupabase] = useState<any>(null)
+  const supabase = createClient()
 
   useEffect(() => {
-    try {
-      const client = createClient()
-      setSupabase(client)
-      console.log("[v0] Supabase client initialized successfully")
-    } catch (error) {
-      console.error("[v0] Failed to initialize Supabase client:", error)
-      setError("Failed to initialize database connection")
-      setIsDatabaseAvailable(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (supabase) {
-      fetchAnalyticsData()
-    }
-  }, [dateRange, reportType, supabase])
+    fetchAnalyticsData()
+  }, [dateRange, reportType])
 
   const fetchAnalyticsData = async () => {
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
     setLoading(true)
-    setError(null)
-
     try {
-      console.log("[v0] Fetching analytics data...")
-
-      const queryTimeout = (promise: Promise<any>, timeoutMs = 10000) => {
-        return Promise.race([
-          promise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Query timeout")), timeoutMs)),
-        ])
-      }
-
-      const safeQuery = async (tableName: string, query: any) => {
-        try {
-          const result = await queryTimeout(query)
-          return result
-        } catch (error: any) {
-          console.warn(`[v0] Failed to query ${tableName}:`, error.message)
-          if (
-            error.message?.includes("Could not find the table") ||
-            error.code === "PGRST205" ||
-            error.message?.includes("Failed to fetch")
-          ) {
-            setIsDatabaseAvailable(false)
-          }
-          return { data: [], count: 0, error: error.message }
-        }
-      }
-
+      // Fetch metrics
       const [jobCardsResult, sopsResult, checkSheetsResult, faultsResult, usersResult] = await Promise.all([
-        safeQuery("job_cards", supabase.from("job_cards").select("*", { count: "exact" })),
-        safeQuery("sops", supabase.from("sops").select("*", { count: "exact" })),
-        safeQuery("completed_check_sheets", supabase.from("completed_check_sheets").select("*", { count: "exact" })),
-        safeQuery("faults", supabase.from("faults").select("*", { count: "exact" })),
-        safeQuery("profiles", supabase.from("profiles").select("*", { count: "exact" })),
+        supabase.from("job_cards").select("*", { count: "exact" }),
+        supabase.from("sops").select("*", { count: "exact" }),
+        supabase.from("completed_check_sheets").select("*", { count: "exact" }),
+        supabase.from("faults").select("*", { count: "exact" }),
+        supabase.from("profiles").select("*", { count: "exact" }),
       ])
 
-      const completedJobCards = await safeQuery(
-        "job_cards_completed",
-        supabase.from("job_cards").select("*", { count: "exact" }).eq("status", "completed"),
-      )
-
-      if (!isDatabaseAvailable) {
-        setMetrics({
-          totalJobCards: 12,
-          completedJobCards: 8,
-          totalSOPs: 15,
-          completedCheckSheets: 25,
-          reportedFaults: 3,
-          activeUsers: 5,
-        })
-
-        setChartData({
-          jobCardTrends: [
-            { month: "Jan", count: 10 },
-            { month: "Feb", count: 15 },
-            { month: "Mar", count: 12 },
-          ],
-          sopUsage: [
-            { category: "Maintenance", total_sops: 8 },
-            { category: "Safety", total_sops: 5 },
-            { category: "Quality", total_sops: 2 },
-          ],
-          checkSheetCompliance: [
-            { week: "Week 1", approval_rate: 85 },
-            { week: "Week 2", approval_rate: 92 },
-            { week: "Week 3", approval_rate: 88 },
-          ],
-          faultTrends: [
-            { month: "Jan", fault_count: 5 },
-            { month: "Feb", fault_count: 3 },
-            { month: "Mar", fault_count: 2 },
-          ],
-        })
-
-        setError("Database schema not set up. Showing sample data. Please run database scripts to enable live data.")
-        console.log("[v0] Using fallback sample data")
-        return
-      }
+      const completedJobCards = await supabase
+        .from("job_cards")
+        .select("*", { count: "exact" })
+        .eq("status", "completed")
 
       setMetrics({
         totalJobCards: jobCardsResult.count || 0,
@@ -150,11 +64,12 @@ export default function ReportsPage() {
         activeUsers: usersResult.count || 0,
       })
 
+      // Fetch chart data
       const [jobTrendsResult, sopUsageResult, complianceResult, faultTrendsResult] = await Promise.all([
-        safeQuery("job_card_analytics", supabase.from("job_card_analytics").select("*")),
-        safeQuery("sop_usage_analytics", supabase.from("sop_usage_analytics").select("*")),
-        safeQuery("check_sheet_compliance", supabase.from("check_sheet_compliance").select("*")),
-        safeQuery("fault_trends", supabase.from("fault_trends").select("*")),
+        supabase.from("job_card_analytics").select("*"),
+        supabase.from("sop_usage_analytics").select("*"),
+        supabase.from("check_sheet_compliance").select("*"),
+        supabase.from("fault_trends").select("*"),
       ])
 
       setChartData({
@@ -163,18 +78,15 @@ export default function ReportsPage() {
         checkSheetCompliance: complianceResult.data || [],
         faultTrends: faultTrendsResult.data || [],
       })
-
-      console.log("[v0] Analytics data fetched successfully")
-    } catch (error: any) {
-      console.error("[v0] Error fetching analytics data:", error)
-      setError(`Failed to load analytics data: ${error.message}`)
-      setIsDatabaseAvailable(false)
+    } catch (error) {
+      console.error("Error fetching analytics data:", error)
     } finally {
       setLoading(false)
     }
   }
 
   const exportReport = async () => {
+    // Implementation for exporting reports
     console.log("Exporting report...", { dateRange, reportType })
   }
 
@@ -191,20 +103,10 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      {error && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <p className="text-sm text-yellow-800">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
+          <p className="text-gray-600">Business insights and performance metrics</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
           <Select value={reportType} onValueChange={setReportType}>
@@ -225,6 +127,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
+      {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <MetricsCard
           title="Total Job Cards"
@@ -274,6 +177,7 @@ export default function ReportsPage() {
         />
       </div>
 
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AnalyticsChart
           title="Job Card Trends"
@@ -309,6 +213,7 @@ export default function ReportsPage() {
         />
       </div>
 
+      {/* Detailed Reports */}
       <Card>
         <CardHeader>
           <CardTitle>Detailed Reports</CardTitle>

@@ -36,11 +36,11 @@ export default function AdminJobCardsPage() {
   return (
     <DashboardLayout role="Admin">
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">All Job Cards</h2>
-        </div>
-
-        <div className="flex gap-3 pb-4 border-b">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">All Job Cards</h2>
+            <p className="text-muted-foreground mt-2">Manage all maintenance work assignments</p>
+          </div>
           <Button asChild>
             <Link href="/admin/job-cards/create">
               <Plus className="h-4 w-4 mr-2" />

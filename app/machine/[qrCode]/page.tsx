@@ -1,285 +1,284 @@
 "use client"
 
-import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Logo } from "@/components/logo"
-import { Footer } from "@/components/footer"
-import { AlertTriangle, Calendar, FileText, ClipboardCheck, Wrench, History, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { format } from "date-fns"
+import { useParams } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { AlertTriangle, FileText, ClipboardCheck, History, Calendar, MapPin, Settings } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 interface Machine {
   id: string
   machine_number: string
   name: string
+  description: string
   model: string
   serial_number: string
   manufacturer: string
   location: string
   status: string
-  last_maintenance: string
-  next_maintenance: string
-  customer: {
-    full_name: string
-    company_name: string
-  }
+  customer_company: string
 }
 
 interface MaintenanceSchedule {
   id: string
-  maintenance_type: string
-  next_due: string
-  frequency_days: number
-}
-
-interface BreakdownRequest {
-  id: string
-  request_number: string
   title: string
+  next_due: string
   status: string
-  urgency: string
-  reported_at: string
+  maintenance_type: string
 }
 
-export default function MachineQRPage() {
+interface BreakdownHistory {
+  id: string
+  breakdown_date: string
+  description: string
+  status: string
+  downtime_hours: number
+}
+
+export default function MachinePortalPage() {
   const params = useParams()
-  const router = useRouter()
   const qrCode = params.qrCode as string
   const [machine, setMachine] = useState<Machine | null>(null)
-  const [maintenanceSchedules, setMaintenanceSchedules] = useState<MaintenanceSchedule[]>([])
-  const [recentBreakdowns, setRecentBreakdowns] = useState<BreakdownRequest[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [maintenance, setMaintenance] = useState<MaintenanceSchedule[]>([])
+  const [breakdowns, setBreakdowns] = useState<BreakdownHistory[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
 
   useEffect(() => {
-    loadMachineData()
+    const fetchMachineData = async () => {
+      const supabase = createClient()
+
+      try {
+        // Fetch machine details
+        const { data: machineData, error: machineError } = await supabase
+          .from("machines")
+          .select("*")
+          .eq("qr_code", qrCode)
+          .single()
+
+        if (machineError || !machineData) {
+          setError("Machine not found")
+          return
+        }
+
+        setMachine(machineData)
+
+        // Fetch maintenance schedule
+        const { data: maintenanceData } = await supabase
+          .from("machine_maintenance")
+          .select("*")
+          .eq("machine_id", machineData.id)
+          .order("next_due", { ascending: true })
+          .limit(5)
+
+        setMaintenance(maintenanceData || [])
+
+        // Fetch breakdown history
+        const { data: breakdownData } = await supabase
+          .from("machine_breakdowns")
+          .select("*")
+          .eq("machine_id", machineData.id)
+          .order("breakdown_date", { ascending: false })
+          .limit(10)
+
+        setBreakdowns(breakdownData || [])
+      } catch (err) {
+        setError("Failed to load machine data")
+        console.error("Error fetching machine data:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (qrCode) {
+      fetchMachineData()
+    }
   }, [qrCode])
 
-  const loadMachineData = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      // Load machine details
-      const { data: machineData, error: machineError } = await supabase
-        .from("machines")
-        .select(
-          `
-          *,
-          customer:customer_id(full_name, company_name)
-        `,
-        )
-        .eq("qr_code", qrCode)
-        .single()
-
-      if (machineError) throw machineError
-      setMachine(machineData)
-
-      // Load maintenance schedules
-      const { data: schedules } = await supabase
-        .from("machine_maintenance_schedules")
-        .select("*")
-        .eq("machine_id", machineData.id)
-        .order("next_due", { ascending: true })
-
-      setMaintenanceSchedules(schedules || [])
-
-      // Load recent breakdown requests
-      const { data: breakdowns } = await supabase
-        .from("breakdown_requests")
-        .select("*")
-        .eq("machine_id", machineData.id)
-        .order("reported_at", { ascending: false })
-        .limit(5)
-
-      setRecentBreakdowns(breakdowns || [])
-    } catch (error: unknown) {
-      console.error("Error loading machine data:", error)
-      setError(error instanceof Error ? error.message : "Failed to load machine data")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-100 text-green-800"
-      case "Maintenance":
-        return "bg-yellow-100 text-yellow-800"
-      case "Inactive":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case "Critical":
-        return "bg-red-100 text-red-800"
-      case "High":
-        return "bg-orange-100 text-orange-800"
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800"
-      case "Low":
-        return "bg-green-100 text-green-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading machine portal...</p>
+        </div>
       </div>
     )
   }
 
   if (error || !machine) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <header className="border-b bg-card shadow-sm p-4">
-          <Logo size="md" showText={true} />
-        </header>
-        <main className="flex-1 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-6 text-center">
-              <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Machine Not Found</h2>
-              <p className="text-muted-foreground">
-                The QR code you scanned does not correspond to a valid machine in our system.
-              </p>
-            </CardContent>
-          </Card>
-        </main>
-        <Footer />
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-2" />
+            <CardTitle>Machine Not Found</CardTitle>
+            <CardDescription>
+              The QR code you scanned is not valid or the machine is no longer available.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     )
   }
 
-  return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="border-b bg-card shadow-sm p-4">
-        <Logo size="md" showText={true} />
-      </header>
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "active":
+        return "bg-green-100 text-green-800"
+      case "maintenance":
+        return "bg-yellow-100 text-yellow-800"
+      case "inactive":
+        return "bg-gray-100 text-gray-800"
+      case "decommissioned":
+        return "bg-red-100 text-red-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
 
-      <main className="flex-1 p-4 max-w-4xl mx-auto w-full">
-        <div className="space-y-6">
-          {/* Machine Info */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-2xl">{machine.name}</CardTitle>
-                  <p className="text-muted-foreground">{machine.machine_number}</p>
-                </div>
-                <Badge className={getStatusColor(machine.status)}>{machine.status}</Badge>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
+      {/* Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 relative">
+                <Image src="/images/stp-logo.png" alt="STP Engineering" fill className="object-contain" />
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p>
-                    <strong>Model:</strong> {machine.model}
-                  </p>
-                  <p>
-                    <strong>Serial Number:</strong> {machine.serial_number}
-                  </p>
-                  <p>
-                    <strong>Manufacturer:</strong> {machine.manufacturer}
-                  </p>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{machine.location}</span>
-                  </div>
-                  <p>
-                    <strong>Customer:</strong> {machine.customer.full_name}
-                  </p>
-                  <p>
-                    <strong>Company:</strong> {machine.customer.company_name}
-                  </p>
-                </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">{machine.name}</h1>
+                <p className="text-muted-foreground">{machine.machine_number}</p>
               </div>
+            </div>
+            <Badge className={getStatusColor(machine.status)}>{machine.status}</Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Machine Details */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Machine Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Model</p>
+                <p className="text-foreground">{machine.model || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Serial Number</p>
+                <p className="text-foreground">{machine.serial_number || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Manufacturer</p>
+                <p className="text-foreground">{machine.manufacturer || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Location</p>
+                <p className="text-foreground flex items-center gap-1">
+                  <MapPin className="h-4 w-4" />
+                  {machine.location || "N/A"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Company</p>
+                <p className="text-foreground">{machine.customer_company}</p>
+              </div>
+            </div>
+            {machine.description && (
+              <div className="mt-4">
+                <p className="text-sm font-medium text-muted-foreground">Description</p>
+                <p className="text-foreground">{machine.description}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6 text-center">
+              <AlertTriangle className="h-8 w-8 text-red-600 mx-auto mb-3" />
+              <h3 className="font-semibold mb-2">Report Breakdown</h3>
+              <p className="text-sm text-muted-foreground mb-4">Submit a breakdown request</p>
+              <Button asChild className="w-full">
+                <Link href={`/machine/${qrCode}/breakdown`}>Report Issue</Link>
+              </Button>
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-md transition-shadow">
-              <Link href={`/machine/${qrCode}/breakdown`}>
-                <CardContent className="p-4 text-center">
-                  <AlertTriangle className="h-8 w-8 text-red-600 mx-auto mb-2" />
-                  <h3 className="font-semibold">Report Breakdown</h3>
-                  <p className="text-sm text-muted-foreground">Submit breakdown request</p>
-                </CardContent>
-              </Link>
-            </Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6 text-center">
+              <FileText className="h-8 w-8 text-blue-600 mx-auto mb-3" />
+              <h3 className="font-semibold mb-2">SOPs</h3>
+              <p className="text-sm text-muted-foreground mb-4">Access procedures</p>
+              <Button asChild variant="outline" className="w-full bg-transparent">
+                <Link href={`/machine/${qrCode}/sops`}>View SOPs</Link>
+              </Button>
+            </CardContent>
+          </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow">
-              <Link href={`/machine/${qrCode}/sops`}>
-                <CardContent className="p-4 text-center">
-                  <FileText className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                  <h3 className="font-semibold">SOPs</h3>
-                  <p className="text-sm text-muted-foreground">Operating procedures</p>
-                </CardContent>
-              </Link>
-            </Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6 text-center">
+              <ClipboardCheck className="h-8 w-8 text-green-600 mx-auto mb-3" />
+              <h3 className="font-semibold mb-2">Check Sheets</h3>
+              <p className="text-sm text-muted-foreground mb-4">Quality inspections</p>
+              <Button asChild variant="outline" className="w-full bg-transparent">
+                <Link href={`/machine/${qrCode}/checksheets`}>View Checks</Link>
+              </Button>
+            </CardContent>
+          </Card>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow">
-              <Link href={`/machine/${qrCode}/check-sheets`}>
-                <CardContent className="p-4 text-center">
-                  <ClipboardCheck className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                  <h3 className="font-semibold">Check Sheets</h3>
-                  <p className="text-sm text-muted-foreground">Inspection checklists</p>
-                </CardContent>
-              </Link>
-            </Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardContent className="p-6 text-center">
+              <Calendar className="h-8 w-8 text-purple-600 mx-auto mb-3" />
+              <h3 className="font-semibold mb-2">Maintenance</h3>
+              <p className="text-sm text-muted-foreground mb-4">Scheduled maintenance</p>
+              <Button asChild variant="outline" className="w-full bg-transparent">
+                <Link href={`/machine/${qrCode}/maintenance`}>View Schedule</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
-            <Card className="cursor-pointer hover:shadow-md transition-shadow">
-              <Link href={`/machine/${qrCode}/history`}>
-                <CardContent className="p-4 text-center">
-                  <History className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                  <h3 className="font-semibold">History</h3>
-                  <p className="text-sm text-muted-foreground">Breakdown history</p>
-                </CardContent>
-              </Link>
-            </Card>
-          </div>
-
-          {/* Maintenance Schedule */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Upcoming Maintenance */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Planned Maintenance
+                Upcoming Maintenance
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {maintenanceSchedules.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">No maintenance scheduled</p>
-              ) : (
+              {maintenance.length > 0 ? (
                 <div className="space-y-3">
-                  {maintenanceSchedules.slice(0, 3).map((schedule) => (
-                    <div key={schedule.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  {maintenance.slice(0, 3).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
-                        <h4 className="font-medium">{schedule.maintenance_type}</h4>
-                        <p className="text-sm text-muted-foreground">Every {schedule.frequency_days} days</p>
+                        <p className="font-medium">{item.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Due: {new Date(item.next_due).toLocaleDateString()}
+                        </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{format(new Date(schedule.next_due), "MMM d, yyyy")}</p>
-                        <p className="text-xs text-muted-foreground">Next due</p>
-                      </div>
+                      <Badge variant={item.status === "Overdue" ? "destructive" : "secondary"}>{item.status}</Badge>
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">No scheduled maintenance</p>
               )}
             </CardContent>
           </Card>
@@ -288,40 +287,45 @@ export default function MachineQRPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Wrench className="h-5 w-5" />
-                Recent Breakdown Requests
+                <History className="h-5 w-5" />
+                Recent Breakdowns
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {recentBreakdowns.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">No recent breakdown requests</p>
-              ) : (
+              {breakdowns.length > 0 ? (
                 <div className="space-y-3">
-                  {recentBreakdowns.map((breakdown) => (
-                    <div key={breakdown.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-sm">{breakdown.title}</h4>
-                          <Badge className={getUrgencyColor(breakdown.urgency)}>{breakdown.urgency}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{breakdown.request_number}</p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="outline">{breakdown.status}</Badge>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(breakdown.reported_at), "MMM d")}
+                  {breakdowns.slice(0, 3).map((breakdown) => (
+                    <div key={breakdown.id} className="p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(breakdown.breakdown_date).toLocaleDateString()}
                         </p>
+                        <Badge variant={breakdown.status === "Resolved" ? "secondary" : "destructive"}>
+                          {breakdown.status}
+                        </Badge>
                       </div>
+                      <p className="font-medium text-sm">{breakdown.description}</p>
+                      {breakdown.downtime_hours && (
+                        <p className="text-xs text-muted-foreground mt-1">Downtime: {breakdown.downtime_hours}h</p>
+                      )}
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">No breakdown history</p>
               )}
             </CardContent>
           </Card>
         </div>
-      </main>
 
-      <Footer />
+        {/* Footer */}
+        <div className="mt-12 text-center">
+          <Separator className="mb-4" />
+          <p className="text-sm text-muted-foreground">
+            Powered by <span className="font-semibold">ThinkQuality</span>
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
