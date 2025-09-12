@@ -40,7 +40,9 @@ export default function LoginPage() {
       if (profileError) {
         if (
           profileError.message.includes('relation "public.profiles" does not exist') ||
-          profileError.message.includes("Failed to fetch")
+          profileError.message.includes("Could not find the table 'public.profiles' in the schema cache") ||
+          profileError.message.includes("Failed to fetch") ||
+          profileError.code === "PGRST205"
         ) {
           throw new Error("Database not initialized. Please contact your administrator to set up the system.")
         }
