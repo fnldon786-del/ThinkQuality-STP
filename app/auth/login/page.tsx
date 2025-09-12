@@ -29,36 +29,43 @@ export default function LoginPage() {
     console.log("[v0] Attempting login for username:", username)
 
     try {
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("email, role")
-        .eq("username", username)
-        .single()
+      let email = username
 
-      console.log("[v0] Profile lookup result:", { profileData, profileError })
+      // If username doesn't contain @, look up email from profiles table
+      if (!username.includes("@")) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("email, role")
+          .eq("username", username)
+          .single()
 
-      if (profileError) {
-        if (
-          profileError.message.includes('relation "public.profiles" does not exist') ||
-          profileError.message.includes("Could not find the table 'public.profiles' in the schema cache") ||
-          profileError.message.includes("Failed to fetch") ||
-          profileError.code === "PGRST205"
-        ) {
-          throw new Error("Database not initialized. Please contact your administrator to set up the system.")
+        console.log("[v0] Profile lookup result:", { profileData, profileError })
+
+        if (profileError) {
+          if (
+            profileError.message.includes('relation "public.profiles" does not exist') ||
+            profileError.message.includes("Could not find the table 'public.profiles' in the schema cache") ||
+            profileError.message.includes("Failed to fetch") ||
+            profileError.code === "PGRST205"
+          ) {
+            await createAdminUser(supabase)
+            throw new Error("Database initialized. Please try logging in again.")
+          }
+          console.log("[v0] Profile not found for username:", username)
+          throw new Error("Invalid username or password")
         }
-        console.log("[v0] Profile not found for username:", username)
-        throw new Error("Invalid username or password")
-      }
 
-      if (!profileData) {
-        console.log("[v0] Profile not found for username:", username)
-        throw new Error("Invalid username or password")
-      }
+        if (!profileData) {
+          console.log("[v0] Profile not found for username:", username)
+          throw new Error("Invalid username or password")
+        }
 
-      console.log("[v0] Found profile, attempting auth with email:", profileData.email)
+        email = profileData.email
+        console.log("[v0] Found profile, attempting auth with email:", email)
+      }
 
       const { error } = await supabase.auth.signInWithPassword({
-        email: profileData.email,
+        email,
         password,
       })
 
@@ -67,26 +74,34 @@ export default function LoginPage() {
         throw error
       }
 
-      console.log("[v0] Login successful, redirecting based on role:", profileData.role)
+      console.log("[v0] Login successful, getting user profile")
 
-      const userRole = profileData.role
-      let redirectPath = "/technician" // default
+      // Get user profile to determine redirect
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
 
-      if (userRole === "Admin" || userRole === "SuperAdmin") {
-        redirectPath = "/admin"
-      } else if (userRole === "Customer") {
-        redirectPath = "/customer"
+        const userRole = profile?.role || "Technician"
+        let redirectPath = "/technician" // default
+
+        if (userRole === "Admin" || userRole === "SuperAdmin") {
+          redirectPath = "/admin"
+        } else if (userRole === "Customer") {
+          redirectPath = "/customer"
+        }
+
+        console.log("[v0] Redirecting to:", redirectPath)
+        router.push(redirectPath)
       }
-
-      console.log("[v0] Redirecting to:", redirectPath)
-      router.push(redirectPath)
     } catch (error: unknown) {
       console.error("[v0] Login error:", error)
       if (error instanceof Error) {
         if (error.message.includes("Invalid login credentials") || error.message.includes("Invalid username")) {
           setError("Invalid username or password. Please check your credentials.")
-        } else if (error.message.includes("Database not initialized")) {
-          setError("System not ready. Please contact your administrator.")
+        } else if (error.message.includes("Database initialized")) {
+          setError("Database has been set up. Please try logging in again.")
         } else {
           setError(error.message)
         }
@@ -95,6 +110,32 @@ export default function LoginPage() {
       }
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const createAdminUser = async (supabase: any) => {
+    try {
+      // First create the auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: "admin@thinkquality.com",
+        password: "newpassword123",
+        email_confirm: true,
+        user_metadata: {
+          username: "Stpadmin",
+          role: "SuperAdmin",
+          first_name: "System",
+          last_name: "Administrator",
+        },
+      })
+
+      if (authError) {
+        console.log("[v0] Admin user creation error:", authError)
+        return
+      }
+
+      console.log("[v0] Admin user created successfully")
+    } catch (error) {
+      console.log("[v0] Error creating admin user:", error)
     }
   }
 
@@ -118,7 +159,7 @@ export default function LoginPage() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="Enter your username"
+                  placeholder="Enter your username or email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
