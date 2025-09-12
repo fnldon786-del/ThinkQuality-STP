@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { FileUpload } from "@/components/file-upload"
 import { TimeTracker } from "@/components/time-tracker"
+import { SignOffWorkflow } from "@/components/sign-off-workflow"
 import { ArrowLeft, Calendar, MapPin, User, Wrench, CheckCircle } from "lucide-react"
 import { createBrowserClient } from "@supabase/ssr"
 import { useRouter } from "next/navigation"
@@ -54,6 +55,7 @@ export default function JobCardDetailPage({ params }: { params: { id: string } }
   const [updating, setUpdating] = useState(false)
   const [workPerformed, setWorkPerformed] = useState("")
   const [notes, setNotes] = useState("")
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -64,6 +66,7 @@ export default function JobCardDetailPage({ params }: { params: { id: string } }
   useEffect(() => {
     fetchJobCard()
     fetchTasks()
+    fetchCurrentUser()
   }, [params.id])
 
   const fetchJobCard = async () => {
@@ -102,6 +105,21 @@ export default function JobCardDetailPage({ params }: { params: { id: string } }
       setTasks(data || [])
     } catch (error) {
       console.error("Error fetching tasks:", error)
+    }
+  }
+
+  const fetchCurrentUser = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+
+        setCurrentUser({ ...user, profile })
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error)
     }
   }
 
@@ -344,6 +362,18 @@ export default function JobCardDetailPage({ params }: { params: { id: string } }
                 <FileUpload jobCardId={jobCard.id} />
               </CardContent>
             </Card>
+
+            {/* Sign-off Workflow */}
+            {currentUser && (
+              <SignOffWorkflow
+                referenceId={jobCard.id}
+                referenceType="job_card"
+                currentUserRole={currentUser.profile?.role || "Technician"}
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.profile?.full_name || ""}
+                onWorkflowUpdate={fetchJobCard}
+              />
+            )}
           </div>
 
           <div className="space-y-6">

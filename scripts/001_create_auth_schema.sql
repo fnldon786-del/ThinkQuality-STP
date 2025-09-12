@@ -5,7 +5,7 @@ create table if not exists public.profiles (
   -- Added username field for username-based login
   username text unique not null,
   full_name text,
-  role text not null check (role in ('Admin', 'Technician', 'Customer')) default 'Technician',
+  role text not null check (role in ('Admin', 'Technician', 'Customer', 'SuperAdmin')) default 'Technician',
   company_name text,
   phone text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -41,11 +41,11 @@ create policy "profiles_admin_select_all"
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role = 'Admin'
+      where id = auth.uid() and role in ('Admin', 'SuperAdmin')
     )
   );
 
--- Allow public read access to username for login lookup
+-- Allow public read access to username and email for login lookup
 create policy "profiles_username_lookup"
   on public.profiles for select
   using (true);
@@ -69,7 +69,7 @@ create policy "companies_admin_all"
   using (
     exists (
       select 1 from public.profiles
-      where id = auth.uid() and role = 'Admin'
+      where id = auth.uid() and role in ('Admin', 'SuperAdmin')
     )
   );
 
@@ -81,50 +81,3 @@ create policy "companies_user_select"
       where id = auth.uid() and company_name = companies.name
     )
   );
-
--- Insert super admin user data
-insert into auth.users (
-  id,
-  instance_id,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  created_at,
-  updated_at,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  is_super_admin,
-  role
-) values (
-  gen_random_uuid(),
-  '00000000-0000-0000-0000-000000000000',
-  'stpadmin@system.local',
-  crypt('12345678', gen_salt('bf')),
-  now(),
-  now(),
-  now(),
-  '{"provider": "email", "providers": ["email"]}',
-  '{"username": "Stpadmin", "full_name": "Super Administrator"}',
-  false,
-  'authenticated'
-) on conflict (email) do nothing;
-
--- Insert super admin profile
-insert into public.profiles (
-  id,
-  email,
-  username,
-  full_name,
-  role,
-  company_name
-) 
-select 
-  id,
-  'stpadmin@system.local',
-  'Stpadmin',
-  'Super Administrator',
-  'Admin',
-  'STP Engineering'
-from auth.users 
-where email = 'stpadmin@system.local'
-on conflict (username) do nothing;

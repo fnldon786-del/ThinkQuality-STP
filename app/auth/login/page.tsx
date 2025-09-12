@@ -35,9 +35,14 @@ export default function LoginPage() {
         .eq("username", username)
         .single()
 
+      console.log("[v0] Profile lookup result:", { profileData, profileError })
+
       if (profileError || !profileData) {
+        console.log("[v0] Profile not found for username:", username)
         throw new Error("Invalid username or password")
       }
+
+      console.log("[v0] Found profile, attempting auth with email:", profileData.email)
 
       const { error } = await supabase.auth.signInWithPassword({
         email: profileData.email,
@@ -45,11 +50,11 @@ export default function LoginPage() {
       })
 
       if (error) {
-        console.log("[v0] Login error:", error.message)
+        console.log("[v0] Auth error:", error.message)
         throw error
       }
 
-      console.log("[v0] Login successful")
+      console.log("[v0] Login successful, redirecting based on role:", profileData.role)
 
       const userRole = profileData.role
       let redirectPath = "/technician" // default
@@ -60,6 +65,7 @@ export default function LoginPage() {
         redirectPath = "/customer"
       }
 
+      console.log("[v0] Redirecting to:", redirectPath)
       router.push(redirectPath)
     } catch (error: unknown) {
       console.error("[v0] Login error:", error)
