@@ -37,7 +37,18 @@ export default function LoginPage() {
 
       console.log("[v0] Profile lookup result:", { profileData, profileError })
 
-      if (profileError || !profileData) {
+      if (profileError) {
+        if (
+          profileError.message.includes('relation "public.profiles" does not exist') ||
+          profileError.message.includes("Failed to fetch")
+        ) {
+          throw new Error("Database not initialized. Please contact your administrator to set up the system.")
+        }
+        console.log("[v0] Profile not found for username:", username)
+        throw new Error("Invalid username or password")
+      }
+
+      if (!profileData) {
         console.log("[v0] Profile not found for username:", username)
         throw new Error("Invalid username or password")
       }
@@ -72,6 +83,8 @@ export default function LoginPage() {
       if (error instanceof Error) {
         if (error.message.includes("Invalid login credentials") || error.message.includes("Invalid username")) {
           setError("Invalid username or password. Please check your credentials.")
+        } else if (error.message.includes("Database not initialized")) {
+          setError("System not ready. Please contact your administrator.")
         } else {
           setError(error.message)
         }
