@@ -138,6 +138,8 @@ export default function AdminUsersPage() {
 
   const createUser = async () => {
     try {
+      console.log("[v0] Creating user with data:", newUser)
+
       const response = await fetch("/api/create-user", {
         method: "POST",
         headers: {
@@ -146,7 +148,9 @@ export default function AdminUsersPage() {
         body: JSON.stringify(newUser),
       })
 
+      console.log("[v0] API response status:", response.status)
       const result = await response.json()
+      console.log("[v0] API response data:", result)
 
       if (!response.ok) {
         throw new Error(result.error || "Failed to create user")
@@ -160,7 +164,7 @@ export default function AdminUsersPage() {
       setNewUser({ username: "", first_name: "", last_name: "", email: "", role: "", password: "" })
       fetchData()
     } catch (error: any) {
-      console.error("Error creating user:", error.message)
+      console.error("[v0] Error creating user:", error.message)
       toast({
         title: "Error",
         description: error.message || "Failed to create user",
