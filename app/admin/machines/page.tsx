@@ -23,9 +23,9 @@ interface Machine {
   status: string
   qr_code: string
   next_maintenance: string
-  customer: {
-    full_name: string
-    company_name: string
+  company: {
+    name: string
+    contact_email: string
   }
 }
 
@@ -54,7 +54,7 @@ export default function MachinesPage() {
         .select(
           `
           *,
-          customer:customer_id(full_name, company_name)
+          company:company_id(name, contact_email)
         `,
         )
         .order("created_at", { ascending: false })
@@ -77,7 +77,7 @@ export default function MachinesPage() {
           machine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           machine.machine_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
           machine.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          machine.customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()),
+          machine.company.name?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -171,10 +171,10 @@ export default function MachinesPage() {
                       <span>{machine.location}</span>
                     </div>
                     <p>
-                      <strong>Customer:</strong> {machine.customer.full_name}
+                      <strong>Company:</strong> {machine.company.name}
                     </p>
                     <p>
-                      <strong>Company:</strong> {machine.customer.company_name}
+                      <strong>Contact:</strong> {machine.company.contact_email}
                     </p>
                     {machine.next_maintenance && (
                       <p>

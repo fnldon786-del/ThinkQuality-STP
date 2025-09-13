@@ -18,22 +18,22 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 
-interface Customer {
+interface Company {
   id: string
-  full_name: string
-  company_name: string
+  name: string
+  contact_email: string
 }
 
 export default function CreateMachinePage() {
   const router = useRouter()
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [formData, setFormData] = useState({
     name: "",
     model: "",
     serial_number: "",
     manufacturer: "",
     location: "",
-    customer_id: "",
+    company_id: "",
     installation_date: undefined as Date | undefined,
     next_maintenance: undefined as Date | undefined,
     maintenance_frequency: "monthly" as "weekly" | "monthly" | "quarterly" | "yearly",
@@ -44,23 +44,19 @@ export default function CreateMachinePage() {
   const supabase = createClient()
 
   useEffect(() => {
-    loadCustomers()
+    loadCompanies()
   }, [])
 
-  const loadCustomers = async () => {
-    console.log("[v0] Loading customers...")
+  const loadCompanies = async () => {
+    console.log("[v0] Loading companies...")
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, company_name")
-        .eq("role", "Customer")
-        .order("full_name")
+      const { data, error } = await supabase.from("companies").select("id, name, contact_email").order("name")
 
       if (error) throw error
-      console.log("[v0] Customers loaded:", data?.length || 0)
-      setCustomers(data || [])
+      console.log("[v0] Companies loaded:", data?.length || 0)
+      setCompanies(data || [])
     } catch (error) {
-      console.error("[v0] Error loading customers:", error)
+      console.error("[v0] Error loading companies:", error)
     }
   }
 
@@ -78,7 +74,7 @@ export default function CreateMachinePage() {
         serial_number: formData.serial_number,
         manufacturer: formData.manufacturer,
         location: formData.location,
-        customer_id: formData.customer_id,
+        company_id: formData.company_id,
         installation_date: formData.installation_date?.toISOString().split("T")[0],
         next_maintenance: formData.next_maintenance?.toISOString().split("T")[0],
         maintenance_frequency: formData.maintenance_frequency,
@@ -178,26 +174,26 @@ export default function CreateMachinePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="customer_id">Customer</Label>
+                  <Label htmlFor="company_id">Company</Label>
                   <Select
-                    value={formData.customer_id}
+                    value={formData.company_id}
                     onValueChange={(value) => {
-                      console.log("[v0] Customer selected:", value)
-                      setFormData((prev) => ({ ...prev, customer_id: value }))
+                      console.log("[v0] Company selected:", value)
+                      setFormData((prev) => ({ ...prev, company_id: value }))
                     }}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select customer" />
+                      <SelectValue placeholder="Select company" />
                     </SelectTrigger>
                     <SelectContent>
-                      {customers.length === 0 ? (
-                        <SelectItem value="no-customers" disabled>
-                          No customers available
+                      {companies.length === 0 ? (
+                        <SelectItem value="no-companies" disabled>
+                          No companies available
                         </SelectItem>
                       ) : (
-                        customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.full_name} ({customer.company_name})
+                        companies.map((company) => (
+                          <SelectItem key={company.id} value={company.id}>
+                            {company.name}
                           </SelectItem>
                         ))
                       )}

@@ -22,6 +22,7 @@ interface Profile {
   id: string
   full_name: string
   role: string
+  company_id?: string
 }
 
 interface Machine {
@@ -33,6 +34,12 @@ interface Machine {
   machine_number: string
 }
 
+interface Company {
+  id: string
+  name: string
+  contact_email: string
+}
+
 interface JobCardFormData {
   title: string
   description: string
@@ -41,7 +48,7 @@ interface JobCardFormData {
   location: string
   estimated_hours: string
   assigned_to: string
-  customer_id: string
+  company_id: string
   machine_id: string
   due_date: Date | undefined
   tasks: string[]
@@ -62,7 +69,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     location: "",
     estimated_hours: "",
     assigned_to: "",
-    customer_id: "",
+    company_id: "",
     machine_id: "",
     due_date: undefined,
     tasks: [""],
@@ -70,7 +77,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     ...initialData,
   })
   const [technicians, setTechnicians] = useState<Profile[]>([])
-  const [customers, setCustomers] = useState<Profile[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [machines, setMachines] = useState<Machine[]>([])
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -86,10 +93,14 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
       setCurrentUser(user)
 
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, role")
+      const { data: companiesData } = await supabase.from("companies").select("id, name, contact_email")
 
       if (profiles) {
         setTechnicians(profiles.filter((p) => p.role === "Technician"))
-        setCustomers(profiles.filter((p) => p.role === "Customer"))
+      }
+
+      if (companiesData) {
+        setCompanies(companiesData)
       }
     }
 
@@ -98,17 +109,17 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
 
   useEffect(() => {
     const loadMachines = async () => {
-      if (!formData.customer_id) {
+      if (!formData.company_id) {
         setMachines([])
         return
       }
 
-      console.log("[v0] Loading machines for customer:", formData.customer_id)
+      console.log("[v0] Loading machines for company:", formData.company_id)
       try {
         const { data, error } = await supabase
           .from("machines")
           .select("id, name, model, serial_number, location, machine_number")
-          .eq("customer_id", formData.customer_id)
+          .eq("company_id", formData.company_id)
           .eq("status", "Active")
           .order("name")
 
@@ -126,7 +137,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     }
 
     loadMachines()
-  }, [formData.customer_id, supabase])
+  }, [formData.company_id, supabase])
 
   const handleInputChange = (field: keyof JobCardFormData, value: string | Date | undefined) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -190,7 +201,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
           location: formData.location,
           estimated_hours: formData.estimated_hours ? Number.parseFloat(formData.estimated_hours) : null,
           assigned_to: formData.assigned_to || null,
-          customer_id: formData.customer_id || null,
+          company_id: formData.company_id || null,
           machine_id: formData.machine_id || null,
           due_date: formData.due_date?.toISOString(),
           created_by: currentUser.id,
@@ -284,21 +295,21 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="customer_id">Customer</Label>
+              <Label htmlFor="company_id">Company</Label>
               <Select
-                value={formData.customer_id}
+                value={formData.company_id}
                 onValueChange={(value) => {
-                  console.log("[v0] Customer selected:", value)
-                  handleInputChange("customer_id", value)
+                  console.log("[v0] Company selected:", value)
+                  handleInputChange("company_id", value)
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select customer first" />
+                  <SelectValue placeholder="Select company first" />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.full_name}
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -307,14 +318,14 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
 
             <div className="space-y-2">
               <Label htmlFor="machine_id">Machine</Label>
-              <Select value={formData.machine_id} onValueChange={handleMachineChange} disabled={!formData.customer_id}>
+              <Select value={formData.machine_id} onValueChange={handleMachineChange} disabled={!formData.company_id}>
                 <SelectTrigger>
-                  <SelectValue placeholder={!formData.customer_id ? "Select customer first" : "Select machine"} />
+                  <SelectValue placeholder={!formData.company_id ? "Select company first" : "Select machine"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {machines.length === 0 && formData.customer_id ? (
+                  {machines.length === 0 && formData.company_id ? (
                     <SelectItem value="no-machines" disabled>
-                      No machines available for this customer
+                      No machines available for this company
                     </SelectItem>
                   ) : (
                     machines.map((machine) => (

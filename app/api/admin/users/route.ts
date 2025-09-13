@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log("[v0] Request body:", body)
 
-    const { username, first_name, last_name, password, role } = body
+    const { username, first_name, last_name, password, role, company_id } = body
 
     // Validate required fields
     if (!username || !first_name || !last_name || !password || !role) {
@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
         first_name: first_name,
         last_name: last_name,
         role: role,
+        company_id: company_id || null,
         email: null, // Don't store the internal email in profile
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -158,10 +159,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
-    // Get all users
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select("*")
+      .select(`
+        *,
+        company:company_id(name, contact_email)
+      `)
       .order("created_at", { ascending: false })
 
     if (usersError) {

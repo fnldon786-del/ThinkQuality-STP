@@ -19,6 +19,13 @@ import {
 import { Label } from "@/components/ui/label"
 import { Search, UserPlus, Edit, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@/lib/supabase/client"
+
+interface Company {
+  id: string
+  name: string
+  contact_email: string
+}
 
 interface UserProfile {
   id: string
@@ -27,12 +34,15 @@ interface UserProfile {
   last_name: string
   email: string
   role: string
+  company_id?: string
   created_at: string
+  company?: Company
 }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [loading, setLoading] = useState(true)
@@ -48,6 +58,7 @@ export default function AdminUsersPage() {
     last_name: "",
     role: "",
     password: "",
+    company_id: "",
   })
 
   const [editUser, setEditUser] = useState({
@@ -55,17 +66,31 @@ export default function AdminUsersPage() {
     first_name: "",
     last_name: "",
     role: "",
+    company_id: "",
   })
 
   const { toast } = useToast()
+  const supabase = createClient()
 
   useEffect(() => {
     fetchUsers()
+    fetchCompanies()
   }, [])
 
   useEffect(() => {
     filterUsers()
   }, [users, searchTerm, roleFilter])
+
+  const fetchCompanies = async () => {
+    try {
+      const { data, error } = await supabase.from("companies").select("id, name, contact_email").order("name")
+
+      if (error) throw error
+      setCompanies(data || [])
+    } catch (error) {
+      console.error("[v0] Error fetching companies:", error)
+    }
+  }
 
   const fetchUsers = async () => {
     try {
@@ -101,7 +126,8 @@ export default function AdminUsersPage() {
         (user) =>
           user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()),
+          user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.company?.name?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -125,6 +151,7 @@ export default function AdminUsersPage() {
         last_name: newUser.last_name.trim(),
         password: newUser.password.trim(),
         role: newUser.role.trim(),
+        company_id: newUser.company_id || null,
       }
 
       // Validate required fields
@@ -185,7 +212,7 @@ export default function AdminUsersPage() {
       })
 
       // Reset form and close dialog
-      setNewUser({ username: "", first_name: "", last_name: "", role: "", password: "" })
+      setNewUser({ username: "", first_name: "", last_name: "", role: "", password: "", company_id: "" })
       setIsDialogOpen(false)
 
       // Refresh users list
@@ -209,6 +236,7 @@ export default function AdminUsersPage() {
       first_name: user.first_name,
       last_name: user.last_name,
       role: user.role,
+      company_id: user.company_id || "",
     })
     setIsEditDialogOpen(true)
   }
@@ -227,6 +255,7 @@ export default function AdminUsersPage() {
         first_name: editUser.first_name.trim(),
         last_name: editUser.last_name.trim(),
         role: editUser.role.trim(),
+        company_id: editUser.company_id || null,
       }
 
       // Validate required fields
@@ -450,6 +479,28 @@ export default function AdminUsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="company_id" className="text-right">
+                    Company
+                  </Label>
+                  <Select
+                    value={newUser.company_id}
+                    onValueChange={(value) => setNewUser({ ...newUser, company_id: value === "none" ? "" : value })}
+                    disabled={isCreatingUser}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select company (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Company</SelectItem>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <DialogFooter>
                 <Button
@@ -532,6 +583,28 @@ export default function AdminUsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-company" className="text-right">
+                    Company
+                  </Label>
+                  <Select
+                    value={editUser.company_id || "none"}
+                    onValueChange={(value) => setEditUser({ ...editUser, company_id: value === "none" ? "" : value })}
+                    disabled={isUpdatingUser}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select company (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Company</SelectItem>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <DialogFooter>
                 <Button
@@ -569,7 +642,7 @@ export default function AdminUsersPage() {
                 <SelectItem value="Admin">Admin</SelectItem>
                 <SelectItem value="Technician">Technician</SelectItem>
                 <SelectItem value="Customer">Customer</SelectItem>
-                <SelectItem value="Super Admin">Super Admin</SelectItem>
+                <SelectItem value="SuperAdmin">Super Admin</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -609,6 +682,12 @@ export default function AdminUsersPage() {
                     </div>
                     <div>
                       <span className="font-medium">Created:</span> {new Date(user.created_at).toLocaleDateString()}
+                    </div>
+                    <div>
+                      <span className="font-medium">Company:</span> {user.company?.name || "No Company"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Contact:</span> {user.company?.contact_email || "N/A"}
                     </div>
                   </div>
                 </CardContent>
