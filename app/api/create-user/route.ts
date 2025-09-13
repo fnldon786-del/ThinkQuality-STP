@@ -25,6 +25,25 @@ export async function POST(request: Request) {
     }
     console.log("[v0] Admin client connection successful")
 
+    console.log("[v0] Checking if user already exists")
+    const { data: existingUsers, error: checkError } = await supabase.auth.admin.listUsers()
+
+    if (checkError) {
+      console.error("[v0] Error checking existing users:", checkError)
+    } else {
+      const existingUser = existingUsers.users.find((user) => user.email === email)
+      if (existingUser) {
+        console.log("[v0] User already exists with email:", email)
+        return NextResponse.json(
+          {
+            error: "already_exists",
+            message: `A user with email ${email} already exists. Please use a different email address.`,
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     console.log("[v0] Creating user in Supabase Auth")
     // Create the user in Supabase Auth using admin client
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -35,7 +54,40 @@ export async function POST(request: Request) {
 
     if (authError) {
       console.error("[v0] Auth creation error:", authError)
-      return NextResponse.json({ error: `Auth error: ${authError.message}` }, { status: 400 })
+
+      if (authError.message.includes("already been registered")) {
+        return NextResponse.json(
+          {
+            error: "already_exists",
+            message: `A user with email ${email} already exists. Please use a different email address.`,
+          },
+          { status: 409 },
+        )
+      } else if (authError.message.includes("Invalid email")) {
+        return NextResponse.json(
+          {
+            error: "invalid_email",
+            message: "Please enter a valid email address",
+          },
+          { status: 400 },
+        )
+      } else if (authError.message.includes("Password")) {
+        return NextResponse.json(
+          {
+            error: "password_error",
+            message: authError.message,
+          },
+          { status: 400 },
+        )
+      } else {
+        return NextResponse.json(
+          {
+            error: "auth_error",
+            message: authError.message,
+          },
+          { status: 400 },
+        )
+      }
     }
 
     if (!authData.user) {
@@ -86,7 +138,8 @@ export async function POST(request: Request) {
     console.error("[v0] User creation error:", error)
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: "server_error",
+        message: error instanceof Error ? error.message : "Unknown error occurred",
       },
       { status: 500 },
     )

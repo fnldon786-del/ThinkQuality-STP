@@ -189,30 +189,45 @@ export default function AdminUsersPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        if (result.error && result.error.includes("already been registered")) {
-          toast({
-            title: "Email Already Exists",
-            description: `A user with email ${newUser.email} already exists. Please use a different email address.`,
-            variant: "destructive",
-          })
-        } else if (result.error && result.error.includes("Invalid email")) {
-          toast({
-            title: "Invalid Email",
-            description: "Please enter a valid email address",
-            variant: "destructive",
-          })
-        } else if (result.error && result.error.includes("Password")) {
-          toast({
-            title: "Password Error",
-            description: result.error,
-            variant: "destructive",
-          })
-        } else {
-          toast({
-            title: "Error Creating User",
-            description: result.error || "Failed to create user. Please try again.",
-            variant: "destructive",
-          })
+        switch (result.error) {
+          case "already_exists":
+            toast({
+              title: "Email Already Exists",
+              description:
+                result.message ||
+                `A user with email ${newUser.email} already exists. Please use a different email address.`,
+              variant: "destructive",
+            })
+            break
+          case "invalid_email":
+            toast({
+              title: "Invalid Email",
+              description: result.message || "Please enter a valid email address",
+              variant: "destructive",
+            })
+            break
+          case "password_error":
+            toast({
+              title: "Password Error",
+              description: result.message,
+              variant: "destructive",
+            })
+            break
+          default:
+            // Fallback for legacy error format and other errors
+            if (result.error && result.error.includes && result.error.includes("already been registered")) {
+              toast({
+                title: "Email Already Exists",
+                description: `A user with email ${newUser.email} already exists. Please use a different email address.`,
+                variant: "destructive",
+              })
+            } else {
+              toast({
+                title: "Error Creating User",
+                description: result.message || result.error || "Failed to create user. Please try again.",
+                variant: "destructive",
+              })
+            }
         }
         return
       }
@@ -226,6 +241,7 @@ export default function AdminUsersPage() {
       setIsDialogOpen(false)
       await fetchData()
     } catch (error: any) {
+      console.error("[v0] Error creating user:", error)
       toast({
         title: "Network Error",
         description: "Unable to connect to the server. Please check your connection and try again.",
