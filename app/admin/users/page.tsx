@@ -37,6 +37,8 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [loading, setLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isCreatingUser, setIsCreatingUser] = useState(false)
 
   const [newUser, setNewUser] = useState({
     username: "",
@@ -141,6 +143,8 @@ export default function AdminUsersPage() {
       console.log("[v0] Create User button clicked!")
       console.log("[v0] Current newUser state:", newUser)
 
+      setIsCreatingUser(true)
+
       if (
         !newUser.username ||
         !newUser.first_name ||
@@ -189,6 +193,7 @@ export default function AdminUsersPage() {
       })
 
       setNewUser({ username: "", first_name: "", last_name: "", email: "", role: "", password: "" })
+      setIsDialogOpen(false)
       fetchData()
     } catch (error: any) {
       console.error("[v0] Error creating user:", error.message)
@@ -197,6 +202,8 @@ export default function AdminUsersPage() {
         description: error.message || "Failed to create user",
         variant: "destructive",
       })
+    } finally {
+      setIsCreatingUser(false)
     }
   }
 
@@ -256,7 +263,7 @@ export default function AdminUsersPage() {
         </div>
 
         <div className="flex gap-3 pb-4 border-b">
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <UserPlus className="h-4 w-4 mr-2" />
@@ -278,6 +285,7 @@ export default function AdminUsersPage() {
                     value={newUser.username}
                     onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                     className="col-span-3"
+                    disabled={isCreatingUser}
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -289,6 +297,7 @@ export default function AdminUsersPage() {
                     value={newUser.first_name}
                     onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })}
                     className="col-span-3"
+                    disabled={isCreatingUser}
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -300,6 +309,7 @@ export default function AdminUsersPage() {
                     value={newUser.last_name}
                     onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })}
                     className="col-span-3"
+                    disabled={isCreatingUser}
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -312,6 +322,7 @@ export default function AdminUsersPage() {
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     className="col-span-3"
+                    disabled={isCreatingUser}
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -324,13 +335,18 @@ export default function AdminUsersPage() {
                     value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                     className="col-span-3"
+                    disabled={isCreatingUser}
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="role" className="text-right">
                     Role
                   </Label>
-                  <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
+                  <Select
+                    value={newUser.role}
+                    onValueChange={(value) => setNewUser({ ...newUser, role: value })}
+                    disabled={isCreatingUser}
+                  >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
@@ -343,14 +359,8 @@ export default function AdminUsersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    console.log("[v0] Button clicked - calling createUser")
-                    createUser()
-                  }}
-                >
-                  Create User
+                <Button type="button" onClick={createUser} disabled={isCreatingUser}>
+                  {isCreatingUser ? "Creating..." : "Create User"}
                 </Button>
               </DialogFooter>
             </DialogContent>
