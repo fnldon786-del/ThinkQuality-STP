@@ -140,36 +140,43 @@ export default function AdminUsersPage() {
 
   const createUser = async () => {
     try {
-      console.log("[v0] Create User button clicked!")
-      console.log("[v0] Current newUser state:", newUser)
-
       setIsCreatingUser(true)
 
-      if (
-        !newUser.username ||
-        !newUser.first_name ||
-        !newUser.last_name ||
-        !newUser.email ||
-        !newUser.password ||
-        !newUser.role
-      ) {
-        console.log("[v0] Validation failed - missing fields:", {
-          username: !!newUser.username,
-          first_name: !!newUser.first_name,
-          last_name: !!newUser.last_name,
-          email: !!newUser.email,
-          password: !!newUser.password,
-          role: !!newUser.role,
-        })
+      const validationErrors = []
+      if (!newUser.username) validationErrors.push("username")
+      if (!newUser.first_name) validationErrors.push("first_name")
+      if (!newUser.last_name) validationErrors.push("last_name")
+      if (!newUser.email) validationErrors.push("email")
+      if (!newUser.password) validationErrors.push("password")
+      if (!newUser.role) validationErrors.push("role")
+
+      if (validationErrors.length > 0) {
         toast({
-          title: "Error",
-          description: "Please fill in all fields",
+          title: "Validation Error",
+          description: `Please fill in all fields. Missing: ${validationErrors.join(", ")}`,
           variant: "destructive",
         })
         return
       }
 
-      console.log("[v0] Creating user with data:", newUser)
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(newUser.email)) {
+        toast({
+          title: "Invalid Email",
+          description: "Please enter a valid email address",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (newUser.password.length < 6) {
+        toast({
+          title: "Password Too Short",
+          description: "Password must be at least 6 characters long",
+          variant: "destructive",
+        })
+        return
+      }
 
       const response = await fetch("/api/create-user", {
         method: "POST",
@@ -179,27 +186,49 @@ export default function AdminUsersPage() {
         body: JSON.stringify(newUser),
       })
 
-      console.log("[v0] API response status:", response.status)
       const result = await response.json()
-      console.log("[v0] API response data:", result)
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to create user")
+        if (result.error && result.error.includes("already been registered")) {
+          toast({
+            title: "Email Already Exists",
+            description: `A user with email ${newUser.email} already exists. Please use a different email address.`,
+            variant: "destructive",
+          })
+        } else if (result.error && result.error.includes("Invalid email")) {
+          toast({
+            title: "Invalid Email",
+            description: "Please enter a valid email address",
+            variant: "destructive",
+          })
+        } else if (result.error && result.error.includes("Password")) {
+          toast({
+            title: "Password Error",
+            description: result.error,
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Error Creating User",
+            description: result.error || "Failed to create user. Please try again.",
+            variant: "destructive",
+          })
+        }
+        return
       }
 
       toast({
         title: "Success",
-        description: "User created successfully",
+        description: `User ${newUser.first_name} ${newUser.last_name} created successfully`,
       })
 
       setNewUser({ username: "", first_name: "", last_name: "", email: "", role: "", password: "" })
       setIsDialogOpen(false)
-      fetchData()
+      await fetchData()
     } catch (error: any) {
-      console.error("[v0] Error creating user:", error.message)
       toast({
-        title: "Error",
-        description: error.message || "Failed to create user",
+        title: "Network Error",
+        description: "Unable to connect to the server. Please check your connection and try again.",
         variant: "destructive",
       })
     } finally {
@@ -359,7 +388,13 @@ export default function AdminUsersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="button" onClick={createUser} disabled={isCreatingUser}>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    createUser()
+                  }}
+                  disabled={isCreatingUser}
+                >
                   {isCreatingUser ? "Creating..." : "Create User"}
                 </Button>
               </DialogFooter>
