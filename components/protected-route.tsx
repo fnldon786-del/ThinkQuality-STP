@@ -61,6 +61,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
           if (
             user.email === "admin@stp.com" &&
             (profileError.code === "PGRST205" ||
+              profileError.code === "PGRST116" ||
               profileError.code === "42P17" ||
               profileError.message?.includes("infinite recursion"))
           ) {

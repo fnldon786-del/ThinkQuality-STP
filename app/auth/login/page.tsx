@@ -121,6 +121,7 @@ export default function LoginPage() {
         }
 
         console.log("[v0] Super admin login successful")
+        await new Promise((resolve) => setTimeout(resolve, 1000))
         setShowDashboardSelection(true)
         setIsLoading(false)
         return
@@ -171,9 +172,28 @@ export default function LoginPage() {
     }
   }
 
-  const handleDashboardSelection = (dashboard: string) => {
+  const handleDashboardSelection = async (dashboard: string) => {
     console.log("[v0] Super admin selected dashboard:", dashboard)
-    router.push(`/${dashboard}`)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      console.log("[v0] Session check before navigation:", session ? "Session exists" : "No session")
+
+      if (!session) {
+        console.log("[v0] No session found, redirecting to login")
+        setError("Session expired. Please login again.")
+        setShowDashboardSelection(false)
+        return
+      }
+
+      // Force a page refresh to ensure middleware picks up the session
+      window.location.href = `/${dashboard}`
+    } catch (err) {
+      console.error("[v0] Session check error:", err)
+      setError("Authentication error. Please login again.")
+      setShowDashboardSelection(false)
+    }
   }
 
   if (!mounted) {
