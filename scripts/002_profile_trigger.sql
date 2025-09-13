@@ -6,15 +6,15 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, username, full_name, role, company_name)
+  insert into public.profiles (id, email, username, first_name, last_name, role, phone)
   values (
     new.id,
     new.email,
-    -- Added username extraction from metadata or generate from email
-    coalesce(new.raw_user_meta_data ->> 'username', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data ->> 'full_name', ''),
+    coalesce(new.raw_user_meta_data ->> 'username', LOWER(SPLIT_PART(new.email, '@', 1))),
+    coalesce(new.raw_user_meta_data ->> 'first_name', ''),
+    coalesce(new.raw_user_meta_data ->> 'last_name', ''),
     coalesce(new.raw_user_meta_data ->> 'role', 'Technician'),
-    coalesce(new.raw_user_meta_data ->> 'company_name', '')
+    coalesce(new.raw_user_meta_data ->> 'phone', '')
   )
   on conflict (id) do nothing;
 

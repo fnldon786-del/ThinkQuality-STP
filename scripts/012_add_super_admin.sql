@@ -3,29 +3,9 @@ ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check 
   CHECK (role IN ('Admin', 'Technician', 'Customer', 'SuperAdmin'));
 
--- Create the super-user account
--- First, we need to insert into auth.users (this would normally be done via Supabase Auth)
--- For now, we'll create a profile that can be linked when the user signs up
+-- Removed the problematic SuperAdmin RLS policy that caused infinite recursion
+-- The admin policies in 001_create_auth_schema.sql already handle SuperAdmin access
+-- by checking for admin@stp.com email directly
 
--- Insert the super-user profile (will be linked when user signs up with this email)
-INSERT INTO public.profiles (id, email, full_name, role, company_name, phone)
-SELECT 
-  gen_random_uuid(),
-  'admin@stp.com',
-  'Super Administrator',
-  'SuperAdmin',
-  'STP',
-  '+1234567890'
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.profiles WHERE email = 'admin@stp.com'
-);
-
--- Update RLS policies to allow SuperAdmin access to everything
-CREATE POLICY "profiles_superadmin_all"
-  ON public.profiles FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE id = auth.uid() AND role = 'SuperAdmin'
-    )
-  );
+-- Note: The super admin user will be created automatically when they first sign up
+-- with the email admin@stp.com through the normal authentication flow

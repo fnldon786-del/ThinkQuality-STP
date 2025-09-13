@@ -10,11 +10,11 @@ export default function AdminSOPsPage() {
   return (
     <DashboardLayout role="Admin">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-foreground">Standard Operating Procedures</h2>
-            <p className="text-muted-foreground mt-2">Manage SOPs and operational procedures</p>
-          </div>
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">Standard Operating Procedures</h2>
+        </div>
+
+        <div className="flex justify-end gap-3 pb-4 border-b">
           <Button asChild>
             <Link href="/admin/sops/create">
               <Plus className="h-4 w-4 mr-2" />

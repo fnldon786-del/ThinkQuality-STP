@@ -2,23 +2,20 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
-  -- Added username field for username-based login
-  username text unique not null,
-  full_name text,
+  first_name text,
+  last_name text,
+  username text,
   role text not null check (role in ('Admin', 'Technician', 'Customer', 'SuperAdmin')) default 'Technician',
-  company_name text,
   phone text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Create index on username for faster lookups
-create index if not exists profiles_username_idx on public.profiles(username);
-
 -- Enable RLS
 alter table public.profiles enable row level security;
 
--- RLS policies for profiles
+-- Fixed RLS policies to prevent infinite recursion by using auth.uid() directly
+-- RLS policies for profiles - users can manage their own profiles
 create policy "profiles_select_own"
   on public.profiles for select
   using (auth.uid() = id);
@@ -35,20 +32,48 @@ create policy "profiles_delete_own"
   on public.profiles for delete
   using (auth.uid() = id);
 
--- Admin can view all profiles
+-- Simplified admin policy using auth.jwt() to avoid recursion
+-- Admin and SuperAdmin can view all profiles
 create policy "profiles_admin_select_all"
   on public.profiles for select
   using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('Admin', 'SuperAdmin')
+    (auth.jwt() ->> 'email') = 'admin@stp.com' OR
+    auth.uid() in (
+      select id from auth.users 
+      where email = 'admin@stp.com'
     )
   );
 
--- Allow public read access to username and email for login lookup
-create policy "profiles_username_lookup"
-  on public.profiles for select
-  using (true);
+-- Admin policies for insert/update/delete using direct auth checks
+create policy "profiles_admin_insert_all"
+  on public.profiles for insert
+  with check (
+    (auth.jwt() ->> 'email') = 'admin@stp.com' OR
+    auth.uid() in (
+      select id from auth.users 
+      where email = 'admin@stp.com'
+    )
+  );
+
+create policy "profiles_admin_update_all"
+  on public.profiles for update
+  using (
+    (auth.jwt() ->> 'email') = 'admin@stp.com' OR
+    auth.uid() in (
+      select id from auth.users 
+      where email = 'admin@stp.com'
+    )
+  );
+
+create policy "profiles_admin_delete_all"
+  on public.profiles for delete
+  using (
+    (auth.jwt() ->> 'email') = 'admin@stp.com' OR
+    auth.uid() in (
+      select id from auth.users 
+      where email = 'admin@stp.com'
+    )
+  );
 
 -- Create companies table
 create table if not exists public.companies (
@@ -63,21 +88,18 @@ create table if not exists public.companies (
 
 alter table public.companies enable row level security;
 
+-- Fixed companies policies to avoid recursion
 -- Companies policies - Admin can manage all, others can view their own company
 create policy "companies_admin_all"
   on public.companies for all
   using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and role in ('Admin', 'SuperAdmin')
+    (auth.jwt() ->> 'email') = 'admin@stp.com' OR
+    auth.uid() in (
+      select id from auth.users 
+      where email = 'admin@stp.com'
     )
   );
 
 create policy "companies_user_select"
   on public.companies for select
-  using (
-    exists (
-      select 1 from public.profiles
-      where id = auth.uid() and company_name = companies.name
-    )
-  );
+  using (created_by = auth.uid());

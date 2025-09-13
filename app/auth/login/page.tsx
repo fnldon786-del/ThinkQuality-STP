@@ -1,165 +1,281 @@
 "use client"
 
 import type React from "react"
-
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
-import Image from "next/image"
+import { useState, useEffect } from "react"
+import { createBrowserClient } from "@supabase/ssr"
+import { Logo } from "@/components/logo"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [showDashboardSelection, setShowDashboardSelection] = useState(false)
+  const [supabaseError, setSupabaseError] = useState(false)
   const router = useRouter()
+
+  let supabase: any = null
+  try {
+    if (
+      typeof window !== "undefined" &&
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+      console.log("[v0] Supabase client initialized successfully")
+    } else {
+      console.log("[v0] Supabase environment variables missing")
+      setSupabaseError(true)
+    }
+  } catch (err) {
+    console.error("[v0] Supabase client initialization error:", err)
+    setSupabaseError(true)
+  }
+
+  useEffect(() => {
+    console.log("[v0] Login page mounting...")
+    try {
+      setMounted(true)
+      console.log("[v0] Login page mounted successfully")
+    } catch (err) {
+      console.error("[v0] Error during mount:", err)
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    const supabase = createClient()
+    console.log("[v0] Login form submitted with username:", username)
     setIsLoading(true)
     setError(null)
 
-    console.log("[v0] Attempting login for username:", username)
-
     try {
-      let email = username
-
-      // If username doesn't contain @, look up email from profiles table
-      if (!username.includes("@")) {
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("email, role")
-          .eq("username", username)
-          .single()
-
-        console.log("[v0] Profile lookup result:", { profileData, profileError })
-
-        if (profileError) {
-          console.log("[v0] Profile not found for username:", username)
-          throw new Error("Invalid username or password")
-        }
-
-        if (!profileData) {
-          console.log("[v0] Profile not found for username:", username)
-          throw new Error("Invalid username or password")
-        }
-
-        email = profileData.email
-        console.log("[v0] Found profile, attempting auth with email:", email)
+      if (!supabase) {
+        throw new Error("Database connection not available. Please check your connection and try again.")
       }
 
-      let authSuccess = false
-      const passwords = password === "1234" ? ["1234", "newpassword123", "admin123"] : [password]
+      if (username === "Stpadmin" && password === "12345678") {
+        console.log("[v0] Super admin login attempt")
 
-      for (const pwd of passwords) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password: pwd,
+        let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: "admin@stp.com",
+          password: "12345678",
         })
 
-        if (!error) {
-          authSuccess = true
-          console.log("[v0] Login successful with password")
-          break
+        if (signInError && signInError.message.includes("Invalid login credentials")) {
+          console.log("[v0] Super admin user doesn't exist, creating...")
+
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: "admin@stp.com",
+            password: "12345678",
+            options: {
+              emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin,
+            },
+          })
+
+          if (signUpError) {
+            console.error("[v0] Sign up error:", signUpError)
+            throw signUpError
+          }
+
+          if (signUpData.user) {
+            console.log("[v0] Creating super admin profile...")
+            try {
+              const { error: profileError } = await supabase.from("profiles").insert({
+                id: signUpData.user.id,
+                username: "Stpadmin",
+                role: "SuperAdmin",
+                full_name: "Super Administrator",
+                company_name: "STP Engineering",
+                email: "admin@stp.com",
+              })
+
+              if (profileError) {
+                console.log("[v0] Profile creation error (table may not exist):", profileError)
+              }
+            } catch (profileErr) {
+              console.log("[v0] Profile creation failed (table may not exist):", profileErr)
+            }
+          }
+
+          // Try signing in again
+          const { data: retrySignIn, error: retryError } = await supabase.auth.signInWithPassword({
+            email: "admin@stp.com",
+            password: "12345678",
+          })
+
+          if (retryError) {
+            console.error("[v0] Retry sign in error:", retryError)
+            throw retryError
+          }
+          signInData = retrySignIn
+        } else if (signInError) {
+          console.error("[v0] Sign in error:", signInError)
+          throw signInError
         }
+
+        console.log("[v0] Super admin login successful")
+        setShowDashboardSelection(true)
+        setIsLoading(false)
+        return
       }
 
-      if (!authSuccess) {
-        console.log("[v0] All password attempts failed")
+      console.log("[v0] Regular user login attempt for:", username)
+
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("username", username)
+        .single()
+
+      if (profileError || !profiles) {
+        console.error("[v0] Profile lookup error:", profileError)
         throw new Error("Invalid username or password")
       }
 
-      console.log("[v0] Login successful, getting user profile")
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: profiles.email || `${username}@company.com`,
+        password: password,
+      })
 
-      // Get user profile to determine redirect
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-
-        const userRole = profile?.role || "Technician"
-        let redirectPath = "/technician" // default
-
-        if (userRole === "Admin" || userRole === "SuperAdmin") {
-          redirectPath = "/admin"
-        } else if (userRole === "Customer") {
-          redirectPath = "/customer"
-        }
-
-        console.log("[v0] Redirecting to:", redirectPath)
-        router.push(redirectPath)
+      if (authError) {
+        console.error("[v0] Auth error:", authError)
+        throw new Error("Invalid username or password")
       }
-    } catch (error: unknown) {
-      console.error("[v0] Login error:", error)
-      if (error instanceof Error) {
-        if (error.message.includes("Invalid login credentials") || error.message.includes("Invalid username")) {
-          setError("Invalid username or password. Please check your credentials.")
-        } else {
-          setError(error.message)
-        }
-      } else {
-        setError("An error occurred during login")
+
+      console.log("[v0] Login successful, redirecting based on role:", profiles.role)
+
+      switch (profiles.role) {
+        case "Admin":
+          router.push("/admin")
+          break
+        case "Technician":
+          router.push("/technician")
+          break
+        case "Customer":
+          router.push("/customer")
+          break
+        default:
+          router.push("/admin")
       }
-    } finally {
+    } catch (err: any) {
+      console.error("[v0] Login error:", err)
+      setError(err.message || "Login failed. Please try again.")
       setIsLoading(false)
     }
   }
 
-  const createAdminUser = async (supabase: any) => {
-    try {
-      // First create the auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: "admin@thinkquality.com",
-        password: "newpassword123",
-        email_confirm: true,
-        user_metadata: {
-          username: "Stpadmin",
-          role: "SuperAdmin",
-          first_name: "System",
-          last_name: "Administrator",
-        },
-      })
+  const handleDashboardSelection = (dashboard: string) => {
+    console.log("[v0] Super admin selected dashboard:", dashboard)
+    router.push(`/${dashboard}`)
+  }
 
-      if (authError) {
-        console.log("[v0] Admin user creation error:", authError)
-        return
-      }
+  if (!mounted) {
+    console.log("[v0] Component not mounted yet, showing loading...")
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
-      console.log("[v0] Admin user created successfully")
-    } catch (error) {
-      console.log("[v0] Error creating admin user:", error)
-    }
+  console.log("[v0] Rendering login page, showDashboardSelection:", showDashboardSelection)
+
+  if (showDashboardSelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-xl">
+            <CardHeader className="text-center space-y-4">
+              <div className="flex justify-center">
+                <Logo size="xl" showText={false} />
+              </div>
+              <div>
+                <CardTitle className="text-2xl font-bold text-gray-900">Select Dashboard</CardTitle>
+                <CardDescription className="text-gray-600">Choose which dashboard to access</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button
+                onClick={() => handleDashboardSelection("admin")}
+                className="w-full h-12 text-left justify-start"
+                variant="outline"
+              >
+                <div>
+                  <div className="font-medium">Admin Dashboard</div>
+                  <div className="text-sm text-muted-foreground">Manage users, settings, and system overview</div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => handleDashboardSelection("technician")}
+                className="w-full h-12 text-left justify-start"
+                variant="outline"
+              >
+                <div>
+                  <div className="font-medium">Technician Dashboard</div>
+                  <div className="text-sm text-muted-foreground">Job cards, SOPs, and maintenance tasks</div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => handleDashboardSelection("customer")}
+                className="w-full h-12 text-left justify-start"
+                variant="outline"
+              >
+                <div>
+                  <div className="font-medium">Customer Dashboard</div>
+                  <div className="text-sm text-muted-foreground">Service requests and reports</div>
+                </div>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <span>Powered by ThinkQuality</span>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <Card className="shadow-xl border-0 bg-card/80 backdrop-blur-sm">
+        <Card className="shadow-xl">
           <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-20 h-20 relative">
-              <Image src="/images/stp-logo.png" alt="STP Engineering" fill className="object-contain" />
+            <div className="flex justify-center">
+              <Logo size="xl" showText={false} />
             </div>
             <div>
-              <CardTitle className="text-2xl font-bold text-foreground">ThinkQuality</CardTitle>
-              <CardDescription className="text-muted-foreground">Sign in to your account</CardDescription>
+              <CardDescription className="text-gray-600">Sign in to your account</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
+            {supabaseError && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-sm text-yellow-800">
+                  Database connection unavailable. Some features may not work properly.
+                </p>
+              </div>
+            )}
+
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="Enter your username or email"
+                  placeholder="Enter your username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
@@ -178,39 +294,35 @@ export default function LoginPage() {
                 />
               </div>
 
-              {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
+              {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{error}</div>}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || supabaseError}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
 
             <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">Don't have an account? </span>
-              <Link href="/auth/sign-up" className="text-primary hover:underline font-medium">
+              <span className="text-gray-600">Don't have an account? </span>
+              <Link href="/auth/sign-up" className="text-blue-600 hover:underline font-medium">
                 Sign up
               </Link>
             </div>
 
-            <div className="mt-4 p-3 bg-muted/50 rounded-md text-xs text-muted-foreground">
-              <p className="font-medium mb-1">Admin Access:</p>
-              <p>Username: Stpadmin | Password: 1234</p>
-              <p className="text-xs mt-1">Email: admin@thinkquality.com</p>
-            </div>
-
-            <div className="mt-4 pt-4 border-t text-center">
-              <div className="flex items-center justify-center space-x-2 text-xs text-muted-foreground">
-                <span>Powered by</span>
-                <div className="flex items-center space-x-1">
-                  <div className="w-4 h-4 bg-primary rounded flex items-center justify-center">
-                    <span className="text-xs font-bold text-primary-foreground">TQ</span>
-                  </div>
-                  <span className="font-semibold text-foreground">ThinkQuality</span>
-                </div>
-              </div>
+            <div className="mt-4 p-3 bg-gray-50 rounded-md text-xs text-gray-600">
+              <p className="font-medium mb-1">Super Admin Login:</p>
+              <p>
+                Username: <span className="font-mono">Stpadmin</span>
+              </p>
+              <p>
+                Password: <span className="font-mono">12345678</span>
+              </p>
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-8 text-center text-sm text-gray-500">
+        <span>Powered by ThinkQuality</span>
       </div>
     </div>
   )

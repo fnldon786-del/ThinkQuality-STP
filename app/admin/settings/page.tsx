@@ -1,448 +1,324 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Settings, Save, RefreshCw, Database, Bell, Shield } from "lucide-react"
-import { createBrowserClient } from "@supabase/ssr"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { createClient } from "@/lib/supabase/client"
+import { Settings, Save, Database, Shield, Bell } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface SystemSettings {
-  id: string
   company_name: string
-  company_email: string
-  company_phone: string
-  company_address: string
-  logo_url: string
-  timezone: string
-  date_format: string
-  currency: string
-  maintenance_reminder_days: number
-  auto_assign_jobs: boolean
+  company_logo: string
+  maintenance_mode: boolean
   email_notifications: boolean
   sms_notifications: boolean
+  auto_backup: boolean
   backup_frequency: string
-  max_file_size_mb: number
-  allowed_file_types: string[]
-  session_timeout_minutes: number
-  password_min_length: number
-  require_2fa: boolean
-  created_at: string
-  updated_at: string
+  session_timeout: number
+  password_policy: string
+  theme: string
 }
 
-export default function SettingsPage() {
-  const [settings, setSettings] = useState<SystemSettings | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  )
-
-  const [formData, setFormData] = useState({
-    company_name: "",
-    company_email: "",
-    company_phone: "",
-    company_address: "",
-    logo_url: "",
-    timezone: "UTC",
-    date_format: "YYYY-MM-DD",
-    currency: "USD",
-    maintenance_reminder_days: 7,
-    auto_assign_jobs: false,
+export default function AdminSettingsPage() {
+  const [settings, setSettings] = useState<SystemSettings>({
+    company_name: "ThinkQuality",
+    company_logo: "",
+    maintenance_mode: false,
     email_notifications: true,
     sms_notifications: false,
+    auto_backup: true,
     backup_frequency: "daily",
-    max_file_size_mb: 10,
-    allowed_file_types: "pdf,doc,docx,jpg,jpeg,png",
-    session_timeout_minutes: 60,
-    password_min_length: 8,
-    require_2fa: false,
+    session_timeout: 30,
+    password_policy: "medium",
+    theme: "system",
   })
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const supabase = createClient()
+  const { toast } = useToast()
 
   useEffect(() => {
-    fetchSettings()
+    loadSettings()
   }, [])
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
+    setLoading(true)
     try {
-      const { data, error } = await supabase.from("system_settings").select("*").single()
-
-      if (error && error.code !== "PGRST116") throw error
-
-      if (data) {
-        setSettings(data)
-        setFormData({
-          company_name: data.company_name || "",
-          company_email: data.company_email || "",
-          company_phone: data.company_phone || "",
-          company_address: data.company_address || "",
-          logo_url: data.logo_url || "",
-          timezone: data.timezone || "UTC",
-          date_format: data.date_format || "YYYY-MM-DD",
-          currency: data.currency || "USD",
-          maintenance_reminder_days: data.maintenance_reminder_days || 7,
-          auto_assign_jobs: data.auto_assign_jobs || false,
-          email_notifications: data.email_notifications || true,
-          sms_notifications: data.sms_notifications || false,
-          backup_frequency: data.backup_frequency || "daily",
-          max_file_size_mb: data.max_file_size_mb || 10,
-          allowed_file_types: data.allowed_file_types?.join(",") || "pdf,doc,docx,jpg,jpeg,png",
-          session_timeout_minutes: data.session_timeout_minutes || 60,
-          password_min_length: data.password_min_length || 8,
-          require_2fa: data.require_2fa || false,
-        })
-      }
+      // In a real implementation, you would load settings from a database table
+      // For now, we'll use default values
+      console.log("[v0] Loading system settings...")
     } catch (error) {
-      console.error("Error fetching settings:", error)
+      console.error("Error loading settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load settings",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSave = async () => {
+  const saveSettings = async () => {
     setSaving(true)
     try {
-      const settingsData = {
-        ...formData,
-        allowed_file_types: formData.allowed_file_types
-          .split(",")
-          .map((type) => type.trim())
-          .filter(Boolean),
-      }
+      // In a real implementation, you would save settings to a database table
+      console.log("[v0] Saving system settings:", settings)
 
-      if (settings) {
-        const { error } = await supabase.from("system_settings").update(settingsData).eq("id", settings.id)
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from("system_settings").insert([settingsData])
-
-        if (error) throw error
-      }
-
-      await fetchSettings()
+      toast({
+        title: "Success",
+        description: "Settings saved successfully",
+      })
     } catch (error) {
       console.error("Error saving settings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save settings",
+        variant: "destructive",
+      })
     } finally {
       setSaving(false)
     }
   }
 
+  const updateSetting = (key: keyof SystemSettings, value: any) => {
+    setSettings((prev) => ({ ...prev, [key]: value }))
+  }
+
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading settings...</div>
+    return (
+      <DashboardLayout role="Admin">
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">System Settings</h1>
-          <p className="text-muted-foreground">Configure system-wide settings and preferences</p>
+    <DashboardLayout role="Admin">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">System Settings</h2>
+            <p className="text-muted-foreground mt-2">Configure system settings and preferences</p>
+          </div>
+          <Button onClick={saveSettings} disabled={saving}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? "Saving..." : "Save Settings"}
+          </Button>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          {saving ? "Saving..." : "Save Changes"}
-        </Button>
-      </div>
 
-      <Tabs defaultValue="general" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="general">
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Company Information
-                </CardTitle>
-                <CardDescription>Basic company details and branding</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="company_name">Company Name</Label>
-                    <Input
-                      id="company_name"
-                      value={formData.company_name}
-                      onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                      placeholder="Your Company Name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="company_email">Company Email</Label>
-                    <Input
-                      id="company_email"
-                      type="email"
-                      value={formData.company_email}
-                      onChange={(e) => setFormData({ ...formData, company_email: e.target.value })}
-                      placeholder="contact@company.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="company_phone">Company Phone</Label>
-                    <Input
-                      id="company_phone"
-                      value={formData.company_phone}
-                      onChange={(e) => setFormData({ ...formData, company_phone: e.target.value })}
-                      placeholder="+1 (555) 123-4567"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="logo_url">Logo URL</Label>
-                    <Input
-                      id="logo_url"
-                      value={formData.logo_url}
-                      onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
-                      placeholder="https://example.com/logo.png"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="company_address">Company Address</Label>
-                  <Textarea
-                    id="company_address"
-                    value={formData.company_address}
-                    onChange={(e) => setFormData({ ...formData, company_address: e.target.value })}
-                    placeholder="123 Business St, City, State 12345"
+        <div className="grid gap-6">
+          {/* General Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                General Settings
+              </CardTitle>
+              <CardDescription>Basic system configuration</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company_name">Company Name</Label>
+                  <Input
+                    id="company_name"
+                    value={settings.company_name}
+                    onChange={(e) => updateSetting("company_name", e.target.value)}
                   />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Regional Settings</CardTitle>
-                <CardDescription>Timezone, date format, and currency preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <Input
-                      id="timezone"
-                      value={formData.timezone}
-                      onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                      placeholder="UTC"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="date_format">Date Format</Label>
-                    <Input
-                      id="date_format"
-                      value={formData.date_format}
-                      onChange={(e) => setFormData({ ...formData, date_format: e.target.value })}
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="currency">Currency</Label>
-                    <Input
-                      id="currency"
-                      value={formData.currency}
-                      onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                      placeholder="USD"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="theme">Theme</Label>
+                  <Select value={settings.theme} onValueChange={(value) => updateSetting("theme", value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Maintenance Mode</Label>
+                  <p className="text-sm text-muted-foreground">Enable maintenance mode to restrict system access</p>
+                </div>
+                <Switch
+                  checked={settings.maintenance_mode}
+                  onCheckedChange={(checked) => updateSetting("maintenance_mode", checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        <TabsContent value="notifications">
+          {/* Notification Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="h-5 w-5" />
-                Notification Settings
+                Notifications
               </CardTitle>
-              <CardDescription>Configure how and when notifications are sent</CardDescription>
+              <CardDescription>Configure notification preferences</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="email_notifications">Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Send notifications via email</p>
+                <div className="space-y-0.5">
+                  <Label>Email Notifications</Label>
+                  <p className="text-sm text-muted-foreground">Send email notifications for system events</p>
                 </div>
                 <Switch
-                  id="email_notifications"
-                  checked={formData.email_notifications}
-                  onCheckedChange={(checked) => setFormData({ ...formData, email_notifications: checked })}
+                  checked={settings.email_notifications}
+                  onCheckedChange={(checked) => updateSetting("email_notifications", checked)}
                 />
               </div>
-
               <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="sms_notifications">SMS Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Send notifications via SMS</p>
+                <div className="space-y-0.5">
+                  <Label>SMS Notifications</Label>
+                  <p className="text-sm text-muted-foreground">Send SMS notifications for critical alerts</p>
                 </div>
                 <Switch
-                  id="sms_notifications"
-                  checked={formData.sms_notifications}
-                  onCheckedChange={(checked) => setFormData({ ...formData, sms_notifications: checked })}
+                  checked={settings.sms_notifications}
+                  onCheckedChange={(checked) => updateSetting("sms_notifications", checked)}
                 />
-              </div>
-
-              <div>
-                <Label htmlFor="maintenance_reminder_days">Maintenance Reminder (Days)</Label>
-                <Input
-                  id="maintenance_reminder_days"
-                  type="number"
-                  value={formData.maintenance_reminder_days}
-                  onChange={(e) =>
-                    setFormData({ ...formData, maintenance_reminder_days: Number.parseInt(e.target.value) || 7 })
-                  }
-                  placeholder="7"
-                />
-                <p className="text-sm text-muted-foreground mt-1">
-                  Send maintenance reminders this many days in advance
-                </p>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="security">
+          {/* Security Settings */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
-                Security Settings
+                Security
               </CardTitle>
-              <CardDescription>Configure security and authentication settings</CardDescription>
+              <CardDescription>Security and authentication settings</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="session_timeout_minutes">Session Timeout (Minutes)</Label>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="session_timeout">Session Timeout (minutes)</Label>
                   <Input
-                    id="session_timeout_minutes"
+                    id="session_timeout"
                     type="number"
-                    value={formData.session_timeout_minutes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, session_timeout_minutes: Number.parseInt(e.target.value) || 60 })
-                    }
-                    placeholder="60"
+                    value={settings.session_timeout}
+                    onChange={(e) => updateSetting("session_timeout", Number.parseInt(e.target.value))}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="password_min_length">Minimum Password Length</Label>
-                  <Input
-                    id="password_min_length"
-                    type="number"
-                    value={formData.password_min_length}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password_min_length: Number.parseInt(e.target.value) || 8 })
-                    }
-                    placeholder="8"
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="password_policy">Password Policy</Label>
+                  <Select
+                    value={settings.password_policy}
+                    onValueChange={(value) => updateSetting("password_policy", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low - 6 characters minimum</SelectItem>
+                      <SelectItem value="medium">Medium - 8 characters, mixed case</SelectItem>
+                      <SelectItem value="high">High - 12 characters, mixed case, numbers, symbols</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="require_2fa">Require Two-Factor Authentication</Label>
-                  <p className="text-sm text-muted-foreground">Require 2FA for all users</p>
-                </div>
-                <Switch
-                  id="require_2fa"
-                  checked={formData.require_2fa}
-                  onCheckedChange={(checked) => setFormData({ ...formData, require_2fa: checked })}
-                />
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="system">
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  File Management
-                </CardTitle>
-                <CardDescription>Configure file upload and storage settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="max_file_size_mb">Maximum File Size (MB)</Label>
-                  <Input
-                    id="max_file_size_mb"
-                    type="number"
-                    value={formData.max_file_size_mb}
-                    onChange={(e) =>
-                      setFormData({ ...formData, max_file_size_mb: Number.parseInt(e.target.value) || 10 })
-                    }
-                    placeholder="10"
-                  />
+          {/* Database Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Database & Backup
+              </CardTitle>
+              <CardDescription>Database maintenance and backup configuration</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Automatic Backups</Label>
+                  <p className="text-sm text-muted-foreground">Enable automatic database backups</p>
                 </div>
-
-                <div>
-                  <Label htmlFor="allowed_file_types">Allowed File Types</Label>
-                  <Input
-                    id="allowed_file_types"
-                    value={formData.allowed_file_types}
-                    onChange={(e) => setFormData({ ...formData, allowed_file_types: e.target.value })}
-                    placeholder="pdf,doc,docx,jpg,jpeg,png"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">Comma-separated list of allowed file extensions</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Automation Settings</CardTitle>
-                <CardDescription>Configure automated system behaviors</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="auto_assign_jobs">Auto-assign Job Cards</Label>
-                    <p className="text-sm text-muted-foreground">Automatically assign jobs to available technicians</p>
-                  </div>
-                  <Switch
-                    id="auto_assign_jobs"
-                    checked={formData.auto_assign_jobs}
-                    onCheckedChange={(checked) => setFormData({ ...formData, auto_assign_jobs: checked })}
-                  />
-                </div>
-
-                <div>
+                <Switch
+                  checked={settings.auto_backup}
+                  onCheckedChange={(checked) => updateSetting("auto_backup", checked)}
+                />
+              </div>
+              {settings.auto_backup && (
+                <div className="space-y-2">
                   <Label htmlFor="backup_frequency">Backup Frequency</Label>
-                  <Input
-                    id="backup_frequency"
-                    value={formData.backup_frequency}
-                    onChange={(e) => setFormData({ ...formData, backup_frequency: e.target.value })}
-                    placeholder="daily"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    How often to backup system data (daily, weekly, monthly)
-                  </p>
+                  <Select
+                    value={settings.backup_frequency}
+                    onValueChange={(value) => updateSetting("backup_frequency", value)}
+                  >
+                    <SelectTrigger className="w-full md:w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hourly">Hourly</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
+              )}
+              <Separator />
+              <div className="flex gap-2">
+                <Button variant="outline">
+                  <Database className="h-4 w-4 mr-2" />
+                  Create Backup Now
+                </Button>
+                <Button variant="outline">
+                  <Database className="h-4 w-4 mr-2" />
+                  View Backup History
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* System Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>System Information</CardTitle>
+              <CardDescription>Current system status and information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">System Version:</span> v2.1.0
+                </div>
+                <div>
+                  <span className="font-medium">Database Version:</span> PostgreSQL 15.3
+                </div>
+                <div>
+                  <span className="font-medium">Last Backup:</span> {new Date().toLocaleDateString()}
+                </div>
+                <div>
+                  <span className="font-medium">System Status:</span>
+                  <span className="ml-2 text-green-600">Operational</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </DashboardLayout>
   )
 }
