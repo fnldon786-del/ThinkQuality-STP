@@ -146,7 +146,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     } else {
       setFormData((prev) => ({
         ...prev,
-        machine_id: machineId,
+        machine_id: "",
         equipment_name: "",
         location: "",
       }))
