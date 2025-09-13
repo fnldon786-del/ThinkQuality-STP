@@ -44,7 +44,6 @@ export default function AdminUsersPage() {
     username: "",
     first_name: "",
     last_name: "",
-    email: "",
     role: "",
     password: "",
   })
@@ -126,8 +125,7 @@ export default function AdminUsersPage() {
         (user) =>
           user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email?.toLowerCase().includes(searchTerm.toLowerCase()),
+          user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -146,7 +144,6 @@ export default function AdminUsersPage() {
       if (!newUser.username) validationErrors.push("username")
       if (!newUser.first_name) validationErrors.push("first_name")
       if (!newUser.last_name) validationErrors.push("last_name")
-      if (!newUser.email) validationErrors.push("email")
       if (!newUser.password) validationErrors.push("password")
       if (!newUser.role) validationErrors.push("role")
 
@@ -154,16 +151,6 @@ export default function AdminUsersPage() {
         toast({
           title: "Validation Error",
           description: `Please fill in all fields. Missing: ${validationErrors.join(", ")}`,
-          variant: "destructive",
-        })
-        return
-      }
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(newUser.email)) {
-        toast({
-          title: "Invalid Email",
-          description: "Please enter a valid email address",
           variant: "destructive",
         })
         return
@@ -192,17 +179,10 @@ export default function AdminUsersPage() {
         switch (result.error) {
           case "already_exists":
             toast({
-              title: "Email Already Exists",
+              title: "User Already Exists",
               description:
                 result.message ||
-                `A user with email ${newUser.email} already exists. Please use a different email address.`,
-              variant: "destructive",
-            })
-            break
-          case "invalid_email":
-            toast({
-              title: "Invalid Email",
-              description: result.message || "Please enter a valid email address",
+                `A user with username ${newUser.username} already exists. Please use a different username.`,
               variant: "destructive",
             })
             break
@@ -214,20 +194,11 @@ export default function AdminUsersPage() {
             })
             break
           default:
-            // Fallback for legacy error format and other errors
-            if (result.error && result.error.includes && result.error.includes("already been registered")) {
-              toast({
-                title: "Email Already Exists",
-                description: `A user with email ${newUser.email} already exists. Please use a different email address.`,
-                variant: "destructive",
-              })
-            } else {
-              toast({
-                title: "Error Creating User",
-                description: result.message || result.error || "Failed to create user. Please try again.",
-                variant: "destructive",
-              })
-            }
+            toast({
+              title: "Error Creating User",
+              description: result.message || result.error || "Failed to create user. Please try again.",
+              variant: "destructive",
+            })
         }
         return
       }
@@ -237,7 +208,7 @@ export default function AdminUsersPage() {
         description: `User ${newUser.first_name} ${newUser.last_name} created successfully`,
       })
 
-      setNewUser({ username: "", first_name: "", last_name: "", email: "", role: "", password: "" })
+      setNewUser({ username: "", first_name: "", last_name: "", role: "", password: "" })
       setIsDialogOpen(false)
       await fetchData()
     } catch (error: any) {
@@ -353,19 +324,6 @@ export default function AdminUsersPage() {
                     id="last_name"
                     value={newUser.last_name}
                     onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })}
-                    className="col-span-3"
-                    disabled={isCreatingUser}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-right">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                     className="col-span-3"
                     disabled={isCreatingUser}
                   />

@@ -1,15 +1,14 @@
-import { createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
     console.log("[v0] Create user API called")
-    const { username, first_name, last_name, email, password, role } = await request.json()
+    const { username, first_name, last_name, password, role } = await request.json()
 
-    console.log("[v0] Received user data:", { username, first_name, last_name, email, role })
+    console.log("[v0] Received user data:", { username, first_name, last_name, role })
 
-    // Validate required fields
-    if (!username || !first_name || !last_name || !email || !password || !role) {
+    if (!username || !first_name || !last_name || !password || !role) {
       console.log("[v0] Missing required fields")
       return NextResponse.json({ error: "All fields are required" }, { status: 400 })
     }
@@ -25,53 +24,38 @@ export async function POST(request: Request) {
     }
     console.log("[v0] Admin client connection successful")
 
-    console.log("[v0] Checking if user already exists")
-    const { data: existingUsers, error: checkError } = await supabase.auth.admin.listUsers()
+    console.log("[v0] Checking if username already exists")
+    const { data: existingProfiles, error: checkError } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("username", username)
+      .limit(1)
 
     if (checkError) {
-      console.error("[v0] Error checking existing users:", checkError)
-    } else {
-      const existingUser = existingUsers.users.find((user) => user.email === email)
-      if (existingUser) {
-        console.log("[v0] User already exists with email:", email)
-        return NextResponse.json(
-          {
-            error: "already_exists",
-            message: `A user with email ${email} already exists. Please use a different email address.`,
-          },
-          { status: 409 },
-        )
-      }
+      console.error("[v0] Error checking existing usernames:", checkError)
+    } else if (existingProfiles && existingProfiles.length > 0) {
+      console.log("[v0] Username already exists:", username)
+      return NextResponse.json(
+        {
+          error: "already_exists",
+          message: `A user with username ${username} already exists. Please use a different username.`,
+        },
+        { status: 409 },
+      )
     }
 
     console.log("[v0] Creating user in Supabase Auth")
-    // Create the user in Supabase Auth using admin client
+    const generatedEmail = `${username}@internal.system`
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
+      email: generatedEmail,
       password,
-      email_confirm: true, // Skip email confirmation for admin-created users
+      email_confirm: true,
     })
 
     if (authError) {
       console.error("[v0] Auth creation error:", authError)
 
-      if (authError.message.includes("already been registered")) {
-        return NextResponse.json(
-          {
-            error: "already_exists",
-            message: `A user with email ${email} already exists. Please use a different email address.`,
-          },
-          { status: 409 },
-        )
-      } else if (authError.message.includes("Invalid email")) {
-        return NextResponse.json(
-          {
-            error: "invalid_email",
-            message: "Please enter a valid email address",
-          },
-          { status: 400 },
-        )
-      } else if (authError.message.includes("Password")) {
+      if (authError.message.includes("Password")) {
         return NextResponse.json(
           {
             error: "password_error",
@@ -103,7 +87,7 @@ export async function POST(request: Request) {
       username,
       first_name,
       last_name,
-      email: authData.user.email,
+      email: null,
       role,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
