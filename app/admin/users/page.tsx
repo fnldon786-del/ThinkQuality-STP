@@ -138,6 +138,33 @@ export default function AdminUsersPage() {
 
   const createUser = async () => {
     try {
+      console.log("[v0] Create User button clicked!")
+      console.log("[v0] Current newUser state:", newUser)
+
+      if (
+        !newUser.username ||
+        !newUser.first_name ||
+        !newUser.last_name ||
+        !newUser.email ||
+        !newUser.password ||
+        !newUser.role
+      ) {
+        console.log("[v0] Validation failed - missing fields:", {
+          username: !!newUser.username,
+          first_name: !!newUser.first_name,
+          last_name: !!newUser.last_name,
+          email: !!newUser.email,
+          password: !!newUser.password,
+          role: !!newUser.role,
+        })
+        toast({
+          title: "Error",
+          description: "Please fill in all fields",
+          variant: "destructive",
+        })
+        return
+      }
+
       console.log("[v0] Creating user with data:", newUser)
 
       const response = await fetch("/api/create-user", {
@@ -316,7 +343,15 @@ export default function AdminUsersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={createUser}>Create User</Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    console.log("[v0] Button clicked - calling createUser")
+                    createUser()
+                  }}
+                >
+                  Create User
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
