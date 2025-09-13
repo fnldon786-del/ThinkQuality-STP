@@ -17,7 +17,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { createClient } from "@/lib/supabase/client"
 import { Search, UserPlus, Edit, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -39,6 +38,9 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isCreatingUser, setIsCreatingUser] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false)
 
   const [newUser, setNewUser] = useState({
     username: "",
@@ -48,70 +50,44 @@ export default function AdminUsersPage() {
     password: "",
   })
 
-  const supabase = createClient()
+  const [editUser, setEditUser] = useState({
+    username: "",
+    first_name: "",
+    last_name: "",
+    role: "",
+  })
+
   const { toast } = useToast()
 
   useEffect(() => {
-    fetchData()
+    fetchUsers()
   }, [])
 
   useEffect(() => {
     filterUsers()
   }, [users, searchTerm, roleFilter])
 
-  const fetchData = async () => {
+  const fetchUsers = async () => {
     try {
-      let usersData = []
-      try {
-        const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false })
+      console.log("[v0] Fetching users from new API")
+      const response = await fetch("/api/admin/users")
 
-        if (error) {
-          if (error.code === "42P17" && error.message.includes("infinite recursion")) {
-            console.log("[v0] Profiles table has policy recursion issue, using empty data")
-            usersData = []
-          } else if (
-            error.code === "PGRST205" ||
-            error.message.includes("Could not find the table") ||
-            error.message.includes("schema cache")
-          ) {
-            console.log("[v0] Profiles table not found, using empty data")
-            usersData = []
-          } else {
-            throw error
-          }
-        } else {
-          usersData = data || []
-        }
-      } catch (tableError: any) {
-        if (tableError.code === "42P17" && tableError.message.includes("infinite recursion")) {
-          console.log("[v0] Profiles table has policy recursion issue, using empty data")
-          usersData = []
-        } else if (
-          tableError.code === "PGRST205" ||
-          tableError.message.includes("Could not find the table") ||
-          tableError.message.includes("schema cache")
-        ) {
-          usersData = []
-        } else {
-          throw tableError
-        }
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to fetch users")
       }
 
-      setUsers(usersData)
+      const data = await response.json()
+      console.log("[v0] Users fetched successfully:", data.users?.length || 0)
+      setUsers(data.users || [])
     } catch (error) {
-      console.error("Error fetching data:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to fetch data"
-      if (
-        !errorMessage.includes("Could not find the table") &&
-        !errorMessage.includes("schema cache") &&
-        !errorMessage.includes("infinite recursion")
-      ) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch data",
-          variant: "destructive",
-        })
-      }
+      console.error("[v0] Error fetching users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive",
+      })
+      setUsers([])
     } finally {
       setLoading(false)
     }
@@ -142,12 +118,22 @@ export default function AdminUsersPage() {
       setIsCreatingUser(true)
       console.log("[v0] Form data:", newUser)
 
+      // Trim all fields
+      const trimmedUser = {
+        username: newUser.username.trim(),
+        first_name: newUser.first_name.trim(),
+        last_name: newUser.last_name.trim(),
+        password: newUser.password.trim(),
+        role: newUser.role.trim(),
+      }
+
+      // Validate required fields
       const validationErrors = []
-      if (!newUser.username?.trim()) validationErrors.push("username")
-      if (!newUser.first_name?.trim()) validationErrors.push("first_name")
-      if (!newUser.last_name?.trim()) validationErrors.push("last_name")
-      if (!newUser.password?.trim()) validationErrors.push("password")
-      if (!newUser.role?.trim()) validationErrors.push("role")
+      if (!trimmedUser.username) validationErrors.push("username")
+      if (!trimmedUser.first_name) validationErrors.push("first name")
+      if (!trimmedUser.last_name) validationErrors.push("last name")
+      if (!trimmedUser.password) validationErrors.push("password")
+      if (!trimmedUser.role) validationErrors.push("role")
 
       if (validationErrors.length > 0) {
         console.log("[v0] Validation errors:", validationErrors)
@@ -156,28 +142,26 @@ export default function AdminUsersPage() {
           description: `Please fill in all fields. Missing: ${validationErrors.join(", ")}`,
           variant: "destructive",
         })
-        setIsCreatingUser(false)
         return
       }
 
-      if (newUser.password.length < 6) {
+      if (trimmedUser.password.length < 6) {
         console.log("[v0] Password too short")
         toast({
           title: "Password Too Short",
           description: "Password must be at least 6 characters long",
           variant: "destructive",
         })
-        setIsCreatingUser(false)
         return
       }
 
-      console.log("[v0] Making API call to /api/create-user")
-      const response = await fetch("/api/create-user", {
+      console.log("[v0] Making API call to /api/admin/users")
+      const response = await fetch("/api/admin/users", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify(trimmedUser),
       })
 
       console.log("[v0] API response status:", response.status)
@@ -186,42 +170,26 @@ export default function AdminUsersPage() {
 
       if (!response.ok) {
         console.log("[v0] API error:", result.error)
-        switch (result.error) {
-          case "already_exists":
-            toast({
-              title: "User Already Exists",
-              description:
-                result.message ||
-                `A user with username ${newUser.username} already exists. Please use a different username.`,
-              variant: "destructive",
-            })
-            break
-          case "password_error":
-            toast({
-              title: "Password Error",
-              description: result.message,
-              variant: "destructive",
-            })
-            break
-          default:
-            toast({
-              title: "Error Creating User",
-              description: result.message || result.error || "Failed to create user. Please try again.",
-              variant: "destructive",
-            })
-        }
+        toast({
+          title: "Error Creating User",
+          description: result.error || "Failed to create user. Please try again.",
+          variant: "destructive",
+        })
         return
       }
 
       console.log("[v0] User created successfully")
       toast({
         title: "Success",
-        description: `User ${newUser.first_name} ${newUser.last_name} created successfully`,
+        description: result.message || `User ${trimmedUser.first_name} ${trimmedUser.last_name} created successfully`,
       })
 
+      // Reset form and close dialog
       setNewUser({ username: "", first_name: "", last_name: "", role: "", password: "" })
       setIsDialogOpen(false)
-      await fetchData()
+
+      // Refresh users list
+      await fetchUsers()
     } catch (error: any) {
       console.error("[v0] Error creating user:", error)
       toast({
@@ -234,24 +202,131 @@ export default function AdminUsersPage() {
     }
   }
 
-  const deleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this user?")) return
+  const openEditDialog = (user: UserProfile) => {
+    setEditingUser(user)
+    setEditUser({
+      username: user.username,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role,
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const updateUser = async () => {
+    if (!editingUser) return
 
     try {
-      const { error } = await supabase.from("profiles").delete().eq("id", userId)
+      console.log("[v0] Update user button clicked")
+      setIsUpdatingUser(true)
+      console.log("[v0] Edit form data:", editUser)
 
-      if (error) throw error
+      // Trim all fields
+      const trimmedUser = {
+        username: editUser.username.trim(),
+        first_name: editUser.first_name.trim(),
+        last_name: editUser.last_name.trim(),
+        role: editUser.role.trim(),
+      }
 
+      // Validate required fields
+      const validationErrors = []
+      if (!trimmedUser.username) validationErrors.push("username")
+      if (!trimmedUser.first_name) validationErrors.push("first name")
+      if (!trimmedUser.last_name) validationErrors.push("last name")
+      if (!trimmedUser.role) validationErrors.push("role")
+
+      if (validationErrors.length > 0) {
+        console.log("[v0] Validation errors:", validationErrors)
+        toast({
+          title: "Validation Error",
+          description: `Please fill in all fields. Missing: ${validationErrors.join(", ")}`,
+          variant: "destructive",
+        })
+        return
+      }
+
+      console.log("[v0] Making API call to update user")
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(trimmedUser),
+      })
+
+      console.log("[v0] API response status:", response.status)
+      const result = await response.json()
+      console.log("[v0] API response data:", result)
+
+      if (!response.ok) {
+        console.log("[v0] API error:", result.error)
+        toast({
+          title: "Error Updating User",
+          description: result.error || "Failed to update user. Please try again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      console.log("[v0] User updated successfully")
       toast({
         title: "Success",
-        description: "User deleted successfully",
+        description: result.message || `User ${trimmedUser.first_name} ${trimmedUser.last_name} updated successfully`,
       })
-      fetchData()
-    } catch (error) {
-      console.error("Error deleting user:", error)
+
+      // Close dialog and refresh users list
+      setIsEditDialogOpen(false)
+      setEditingUser(null)
+      await fetchUsers()
+    } catch (error: any) {
+      console.error("[v0] Error updating user:", error)
       toast({
-        title: "Error",
-        description: "Failed to delete user",
+        title: "Network Error",
+        description: "Unable to connect to the server. Please check your connection and try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingUser(false)
+    }
+  }
+
+  const deleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      console.log("[v0] Deleting user:", userId)
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.log("[v0] Delete API error:", result.error)
+        toast({
+          title: "Error Deleting User",
+          description: result.error || "Failed to delete user. Please try again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      console.log("[v0] User deleted successfully")
+      toast({
+        title: "Success",
+        description: result.message || "User deleted successfully",
+      })
+
+      // Refresh users list
+      await fetchUsers()
+    } catch (error: any) {
+      console.error("[v0] Error deleting user:", error)
+      toast({
+        title: "Network Error",
+        description: "Unable to connect to the server. Please check your connection and try again.",
         variant: "destructive",
       })
     }
@@ -265,7 +340,7 @@ export default function AdminUsersPage() {
         return "bg-blue-100 text-blue-800"
       case "Customer":
         return "bg-green-100 text-green-800"
-      case "SuperAdmin":
+      case "Super Admin":
         return "bg-purple-100 text-purple-800"
       default:
         return "bg-gray-100 text-gray-800"
@@ -313,6 +388,7 @@ export default function AdminUsersPage() {
                     onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                     className="col-span-3"
                     disabled={isCreatingUser}
+                    placeholder="Enter username"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -325,6 +401,7 @@ export default function AdminUsersPage() {
                     onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })}
                     className="col-span-3"
                     disabled={isCreatingUser}
+                    placeholder="Enter first name"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -337,6 +414,7 @@ export default function AdminUsersPage() {
                     onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })}
                     className="col-span-3"
                     disabled={isCreatingUser}
+                    placeholder="Enter last name"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -350,6 +428,7 @@ export default function AdminUsersPage() {
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                     className="col-span-3"
                     disabled={isCreatingUser}
+                    placeholder="Enter password (min 6 characters)"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -387,6 +466,87 @@ export default function AdminUsersPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit User</DialogTitle>
+                <DialogDescription>Update user information</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-username" className="text-right">
+                    Username
+                  </Label>
+                  <Input
+                    id="edit-username"
+                    value={editUser.username}
+                    onChange={(e) => setEditUser({ ...editUser, username: e.target.value })}
+                    className="col-span-3"
+                    disabled={isUpdatingUser}
+                    placeholder="Enter username"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-first-name" className="text-right">
+                    First Name
+                  </Label>
+                  <Input
+                    id="edit-first-name"
+                    value={editUser.first_name}
+                    onChange={(e) => setEditUser({ ...editUser, first_name: e.target.value })}
+                    className="col-span-3"
+                    disabled={isUpdatingUser}
+                    placeholder="Enter first name"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-last-name" className="text-right">
+                    Last Name
+                  </Label>
+                  <Input
+                    id="edit-last-name"
+                    value={editUser.last_name}
+                    onChange={(e) => setEditUser({ ...editUser, last_name: e.target.value })}
+                    className="col-span-3"
+                    disabled={isUpdatingUser}
+                    placeholder="Enter last name"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-role" className="text-right">
+                    Role
+                  </Label>
+                  <Select
+                    value={editUser.role}
+                    onValueChange={(value) => setEditUser({ ...editUser, role: value })}
+                    disabled={isUpdatingUser}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Technician">Technician</SelectItem>
+                      <SelectItem value="Customer">Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    updateUser()
+                  }}
+                  disabled={isUpdatingUser}
+                >
+                  {isUpdatingUser ? "Updating..." : "Update User"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="space-y-6">
@@ -409,7 +569,7 @@ export default function AdminUsersPage() {
                 <SelectItem value="Admin">Admin</SelectItem>
                 <SelectItem value="Technician">Technician</SelectItem>
                 <SelectItem value="Customer">Customer</SelectItem>
-                <SelectItem value="SuperAdmin">Super Admin</SelectItem>
+                <SelectItem value="Super Admin">Super Admin</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -429,10 +589,14 @@ export default function AdminUsersPage() {
                       <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => deleteUser(user.id)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deleteUser(user.id, `${user.first_name} ${user.last_name}` || user.username)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -457,9 +621,9 @@ export default function AdminUsersPage() {
               <CardContent className="text-center py-8">
                 {users.length === 0 ? (
                   <div className="space-y-2">
-                    <p className="text-muted-foreground">Database setup required</p>
+                    <p className="text-muted-foreground">No users found</p>
                     <p className="text-sm text-muted-foreground">
-                      Run the database scripts to enable user management functionality
+                      Create your first user using the "New User" button above
                     </p>
                   </div>
                 ) : (
