@@ -138,33 +138,40 @@ export default function AdminUsersPage() {
 
   const createUser = async () => {
     try {
+      console.log("[v0] Create user button clicked")
       setIsCreatingUser(true)
+      console.log("[v0] Form data:", newUser)
 
       const validationErrors = []
-      if (!newUser.username) validationErrors.push("username")
-      if (!newUser.first_name) validationErrors.push("first_name")
-      if (!newUser.last_name) validationErrors.push("last_name")
-      if (!newUser.password) validationErrors.push("password")
-      if (!newUser.role) validationErrors.push("role")
+      if (!newUser.username?.trim()) validationErrors.push("username")
+      if (!newUser.first_name?.trim()) validationErrors.push("first_name")
+      if (!newUser.last_name?.trim()) validationErrors.push("last_name")
+      if (!newUser.password?.trim()) validationErrors.push("password")
+      if (!newUser.role?.trim()) validationErrors.push("role")
 
       if (validationErrors.length > 0) {
+        console.log("[v0] Validation errors:", validationErrors)
         toast({
           title: "Validation Error",
           description: `Please fill in all fields. Missing: ${validationErrors.join(", ")}`,
           variant: "destructive",
         })
+        setIsCreatingUser(false)
         return
       }
 
       if (newUser.password.length < 6) {
+        console.log("[v0] Password too short")
         toast({
           title: "Password Too Short",
           description: "Password must be at least 6 characters long",
           variant: "destructive",
         })
+        setIsCreatingUser(false)
         return
       }
 
+      console.log("[v0] Making API call to /api/create-user")
       const response = await fetch("/api/create-user", {
         method: "POST",
         headers: {
@@ -173,9 +180,12 @@ export default function AdminUsersPage() {
         body: JSON.stringify(newUser),
       })
 
+      console.log("[v0] API response status:", response.status)
       const result = await response.json()
+      console.log("[v0] API response data:", result)
 
       if (!response.ok) {
+        console.log("[v0] API error:", result.error)
         switch (result.error) {
           case "already_exists":
             toast({
@@ -203,6 +213,7 @@ export default function AdminUsersPage() {
         return
       }
 
+      console.log("[v0] User created successfully")
       toast({
         title: "Success",
         description: `User ${newUser.first_name} ${newUser.last_name} created successfully`,
@@ -363,8 +374,10 @@ export default function AdminUsersPage() {
               </div>
               <DialogFooter>
                 <Button
-                  type="button"
-                  onClick={() => {
+                  type="submit"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    console.log("[v0] Create User button clicked, current form state:", newUser)
                     createUser()
                   }}
                   disabled={isCreatingUser}
