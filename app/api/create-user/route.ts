@@ -17,6 +17,14 @@ export async function POST(request: Request) {
     console.log("[v0] Creating admin client")
     const supabase = createAdminClient()
 
+    console.log("[v0] Testing admin client connection")
+    const { data: testData, error: testError } = await supabase.from("profiles").select("count").limit(1)
+    if (testError) {
+      console.error("[v0] Admin client connection test failed:", testError)
+      return NextResponse.json({ error: `Admin client connection failed: ${testError.message}` }, { status: 500 })
+    }
+    console.log("[v0] Admin client connection successful")
+
     console.log("[v0] Creating user in Supabase Auth")
     // Create the user in Supabase Auth using admin client
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -27,14 +35,18 @@ export async function POST(request: Request) {
 
     if (authError) {
       console.error("[v0] Auth creation error:", authError)
-      return NextResponse.json({ error: authError.message }, { status: 400 })
+      return NextResponse.json({ error: `Auth error: ${authError.message}` }, { status: 400 })
+    }
+
+    if (!authData.user) {
+      console.error("[v0] No user data returned from auth creation")
+      return NextResponse.json({ error: "No user data returned from auth creation" }, { status: 500 })
     }
 
     console.log("[v0] Auth user created successfully:", authData.user.id)
 
     console.log("[v0] Creating profile record")
-    // Create the profile with the specified role
-    const { error: profileError } = await supabase.from("profiles").upsert({
+    const profileData = {
       id: authData.user.id,
       username,
       first_name,
@@ -43,13 +55,27 @@ export async function POST(request: Request) {
       role,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    })
+    }
+    console.log("[v0] Profile data to insert:", profileData)
+
+    const { data: profileResult, error: profileError } = await supabase.from("profiles").insert(profileData).select()
 
     if (profileError) {
       console.error("[v0] Profile creation error:", profileError)
-      return NextResponse.json({ error: profileError.message }, { status: 400 })
+      console.error("[v0] Profile error details:", {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+      })
+
+      console.log("[v0] Cleaning up auth user due to profile creation failure")
+      await supabase.auth.admin.deleteUser(authData.user.id)
+
+      return NextResponse.json({ error: `Profile creation failed: ${profileError.message}` }, { status: 400 })
     }
 
+    console.log("[v0] Profile created successfully:", profileResult)
     console.log("[v0] User created successfully")
     return NextResponse.json({
       success: true,
