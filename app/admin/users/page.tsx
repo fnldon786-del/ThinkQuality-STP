@@ -138,24 +138,18 @@ export default function AdminUsersPage() {
 
   const createUser = async () => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newUser.email,
-        password: newUser.password,
+      const response = await fetch("/api/create-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newUser),
       })
 
-      if (authError) throw authError
+      const result = await response.json()
 
-      if (authData.user) {
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: authData.user.id,
-          username: newUser.username,
-          first_name: newUser.first_name,
-          last_name: newUser.last_name,
-          role: newUser.role,
-          email: newUser.email,
-        })
-
-        if (profileError) throw profileError
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create user")
       }
 
       toast({

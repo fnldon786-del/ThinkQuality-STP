@@ -24,6 +24,15 @@ interface Profile {
   role: string
 }
 
+interface Machine {
+  id: string
+  name: string
+  model: string
+  serial_number: string
+  location: string
+  machine_number: string
+}
+
 interface JobCardFormData {
   title: string
   description: string
@@ -33,6 +42,7 @@ interface JobCardFormData {
   estimated_hours: string
   assigned_to: string
   customer_id: string
+  machine_id: string
   due_date: Date | undefined
   tasks: string[]
   attachments: UploadedFile[]
@@ -53,6 +63,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     estimated_hours: "",
     assigned_to: "",
     customer_id: "",
+    machine_id: "",
     due_date: undefined,
     tasks: [""],
     attachments: [],
@@ -60,6 +71,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
   })
   const [technicians, setTechnicians] = useState<Profile[]>([])
   const [customers, setCustomers] = useState<Profile[]>([])
+  const [machines, setMachines] = useState<Machine[]>([])
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,13 +80,11 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
 
   useEffect(() => {
     const loadData = async () => {
-      // Get current user
       const {
         data: { user },
       } = await supabase.auth.getUser()
       setCurrentUser(user)
 
-      // Load technicians and customers
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, role")
 
       if (profiles) {
@@ -86,8 +96,61 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     loadData()
   }, [supabase])
 
+  useEffect(() => {
+    const loadMachines = async () => {
+      if (!formData.customer_id) {
+        setMachines([])
+        return
+      }
+
+      console.log("[v0] Loading machines for customer:", formData.customer_id)
+      try {
+        const { data, error } = await supabase
+          .from("machines")
+          .select("id, name, model, serial_number, location, machine_number")
+          .eq("customer_id", formData.customer_id)
+          .eq("status", "Active")
+          .order("name")
+
+        if (error) throw error
+        console.log("[v0] Machines loaded:", data?.length || 0)
+        setMachines(data || [])
+
+        if (formData.machine_id) {
+          setFormData((prev) => ({ ...prev, machine_id: "", equipment_name: "", location: "" }))
+        }
+      } catch (error) {
+        console.error("[v0] Error loading machines:", error)
+        setMachines([])
+      }
+    }
+
+    loadMachines()
+  }, [formData.customer_id, supabase])
+
   const handleInputChange = (field: keyof JobCardFormData, value: string | Date | undefined) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleMachineChange = (machineId: string) => {
+    const selectedMachine = machines.find((m) => m.id === machineId)
+    console.log("[v0] Machine selected:", selectedMachine)
+
+    if (selectedMachine) {
+      setFormData((prev) => ({
+        ...prev,
+        machine_id: machineId,
+        equipment_name: `${selectedMachine.name} (${selectedMachine.model})`,
+        location: selectedMachine.location,
+      }))
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        machine_id: machineId,
+        equipment_name: "",
+        location: "",
+      }))
+    }
   }
 
   const addTask = () => {
@@ -116,11 +179,10 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
     setError(null)
 
     try {
-      // Create job card
       const { data: jobCard, error: jobCardError } = await supabase
         .from("job_cards")
         .insert({
-          job_number: `JC${Date.now()}`, // Temporary - will be replaced by trigger
+          job_number: `JC${Date.now()}`,
           title: formData.title,
           description: formData.description,
           priority: formData.priority,
@@ -129,6 +191,7 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
           estimated_hours: formData.estimated_hours ? Number.parseFloat(formData.estimated_hours) : null,
           assigned_to: formData.assigned_to || null,
           customer_id: formData.customer_id || null,
+          machine_id: formData.machine_id || null,
           due_date: formData.due_date?.toISOString(),
           created_by: currentUser.id,
         })
@@ -137,7 +200,6 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
 
       if (jobCardError) throw jobCardError
 
-      // Create tasks
       if (jobCard && formData.tasks.filter((task) => task.trim()).length > 0) {
         const tasksToInsert = formData.tasks
           .filter((task) => task.trim())
@@ -222,12 +284,59 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="equipment_name">Equipment</Label>
+              <Label htmlFor="customer_id">Customer</Label>
+              <Select
+                value={formData.customer_id}
+                onValueChange={(value) => {
+                  console.log("[v0] Customer selected:", value)
+                  handleInputChange("customer_id", value)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select customer first" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id}>
+                      {customer.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="machine_id">Machine</Label>
+              <Select value={formData.machine_id} onValueChange={handleMachineChange} disabled={!formData.customer_id}>
+                <SelectTrigger>
+                  <SelectValue placeholder={!formData.customer_id ? "Select customer first" : "Select machine"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {machines.length === 0 && formData.customer_id ? (
+                    <SelectItem value="no-machines" disabled>
+                      No machines available for this customer
+                    </SelectItem>
+                  ) : (
+                    machines.map((machine) => (
+                      <SelectItem key={machine.id} value={machine.id}>
+                        {machine.name} - {machine.model} ({machine.machine_number})
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="equipment_name">Equipment Details</Label>
               <Input
                 id="equipment_name"
                 value={formData.equipment_name}
                 onChange={(e) => handleInputChange("equipment_name", e.target.value)}
-                placeholder="Equipment name/ID"
+                placeholder="Auto-filled from machine selection"
+                readOnly={!!formData.machine_id}
               />
             </div>
 
@@ -237,12 +346,13 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
                 id="location"
                 value={formData.location}
                 onChange={(e) => handleInputChange("location", e.target.value)}
-                placeholder="Work location"
+                placeholder="Auto-filled from machine selection"
+                readOnly={!!formData.machine_id}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="estimated_hours">Estimated Hours</Label>
               <Input
@@ -265,22 +375,6 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
                   {technicians.map((tech) => (
                     <SelectItem key={tech.id} value={tech.id}>
                       {tech.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="customer_id">Customer</Label>
-              <Select value={formData.customer_id} onValueChange={(value) => handleInputChange("customer_id", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.full_name}
                     </SelectItem>
                   ))}
                 </SelectContent>

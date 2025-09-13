@@ -36,6 +36,7 @@ export default function CreateMachinePage() {
     customer_id: "",
     installation_date: undefined as Date | undefined,
     next_maintenance: undefined as Date | undefined,
+    maintenance_frequency: "monthly" as "weekly" | "monthly" | "quarterly" | "yearly",
     notes: "",
   })
   const [isLoading, setIsLoading] = useState(false)
@@ -47,6 +48,7 @@ export default function CreateMachinePage() {
   }, [])
 
   const loadCustomers = async () => {
+    console.log("[v0] Loading customers...")
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -55,9 +57,10 @@ export default function CreateMachinePage() {
         .order("full_name")
 
       if (error) throw error
+      console.log("[v0] Customers loaded:", data?.length || 0)
       setCustomers(data || [])
     } catch (error) {
-      console.error("Error loading customers:", error)
+      console.error("[v0] Error loading customers:", error)
     }
   }
 
@@ -65,6 +68,8 @@ export default function CreateMachinePage() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+
+    console.log("[v0] Submitting form data:", formData)
 
     try {
       const { error } = await supabase.from("machines").insert({
@@ -76,15 +81,17 @@ export default function CreateMachinePage() {
         customer_id: formData.customer_id,
         installation_date: formData.installation_date?.toISOString().split("T")[0],
         next_maintenance: formData.next_maintenance?.toISOString().split("T")[0],
+        maintenance_frequency: formData.maintenance_frequency,
         notes: formData.notes,
         status: "Active",
       })
 
       if (error) throw error
 
+      console.log("[v0] Machine created successfully")
       router.push("/admin/machines")
     } catch (error: unknown) {
-      console.error("Error creating machine:", error)
+      console.error("[v0] Error creating machine:", error)
       setError(error instanceof Error ? error.message : "Failed to create machine")
     } finally {
       setIsLoading(false)
@@ -174,17 +181,26 @@ export default function CreateMachinePage() {
                   <Label htmlFor="customer_id">Customer</Label>
                   <Select
                     value={formData.customer_id}
-                    onValueChange={(value) => setFormData((prev) => ({ ...prev, customer_id: value }))}
+                    onValueChange={(value) => {
+                      console.log("[v0] Customer selected:", value)
+                      setFormData((prev) => ({ ...prev, customer_id: value }))
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select customer" />
                     </SelectTrigger>
                     <SelectContent>
-                      {customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.full_name} ({customer.company_name})
+                      {customers.length === 0 ? (
+                        <SelectItem value="no-customers" disabled>
+                          No customers available
                         </SelectItem>
-                      ))}
+                      ) : (
+                        customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.full_name} ({customer.company_name})
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -195,16 +211,23 @@ export default function CreateMachinePage() {
                   <Label>Installation Date</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal bg-transparent"
+                        onClick={() => console.log("[v0] Installation date picker clicked")}
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {formData.installation_date ? format(formData.installation_date, "PPP") : "Select date"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
                         selected={formData.installation_date}
-                        onSelect={(date) => setFormData((prev) => ({ ...prev, installation_date: date }))}
+                        onSelect={(date) => {
+                          console.log("[v0] Installation date selected:", date)
+                          setFormData((prev) => ({ ...prev, installation_date: date }))
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
@@ -215,21 +238,49 @@ export default function CreateMachinePage() {
                   <Label>Next Maintenance</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal bg-transparent"
+                        onClick={() => console.log("[v0] Maintenance date picker clicked")}
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {formData.next_maintenance ? format(formData.next_maintenance, "PPP") : "Select date"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="single"
                         selected={formData.next_maintenance}
-                        onSelect={(date) => setFormData((prev) => ({ ...prev, next_maintenance: date }))}
+                        onSelect={(date) => {
+                          console.log("[v0] Maintenance date selected:", date)
+                          setFormData((prev) => ({ ...prev, next_maintenance: date }))
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="maintenance_frequency">Maintenance Frequency</Label>
+                <Select
+                  value={formData.maintenance_frequency}
+                  onValueChange={(value: "weekly" | "monthly" | "quarterly" | "yearly") => {
+                    console.log("[v0] Maintenance frequency selected:", value)
+                    setFormData((prev) => ({ ...prev, maintenance_frequency: value }))
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select maintenance frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
