@@ -10,10 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Plus, X } from "lucide-react"
-import { format } from "date-fns"
+import { Plus, X } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
@@ -314,47 +311,32 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Effective Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.effective_date ? format(formData.effective_date, "PPP") : "Select effective date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.effective_date}
-                    onSelect={(date) => handleInputChange("effective_date", date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="effective_date">Effective Date</Label>
+              <Input
+                id="effective_date"
+                type="date"
+                value={formData.effective_date ? formData.effective_date.toISOString().split("T")[0] : ""}
+                onChange={(e) =>
+                  handleInputChange("effective_date", e.target.value ? new Date(e.target.value) : undefined)
+                }
+                className="w-full"
+              />
             </div>
 
             <div className="space-y-2">
-              <Label>Review Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.review_date ? format(formData.review_date, "PPP") : "Select review date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.review_date}
-                    onSelect={(date) => handleInputChange("review_date", date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="review_date">Review Date</Label>
+              <Input
+                id="review_date"
+                type="date"
+                value={formData.review_date ? formData.review_date.toISOString().split("T")[0] : ""}
+                onChange={(e) =>
+                  handleInputChange("review_date", e.target.value ? new Date(e.target.value) : undefined)
+                }
+                className="w-full"
+              />
             </div>
           </div>
 
-          {/* Equipment Types */}
           <div className="space-y-2">
             <Label>Equipment Types</Label>
             <div className="flex gap-2">
@@ -380,7 +362,6 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
             </div>
           </div>
 
-          {/* Safety Requirements */}
           <div className="space-y-2">
             <Label>Safety Requirements</Label>
             <div className="flex gap-2">
@@ -406,7 +387,6 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
             </div>
           </div>
 
-          {/* Required Tools */}
           <div className="space-y-2">
             <Label>Required Tools</Label>
             <div className="flex gap-2">
@@ -442,7 +422,6 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
             />
           </div>
 
-          {/* Steps */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label>Procedure Steps</Label>
@@ -492,7 +471,6 @@ export function SOPForm({ onSuccess, initialData }: SOPFormProps) {
             ))}
           </div>
 
-          {/* Attachments */}
           <div className="space-y-2">
             <Label>Attachments</Label>
             <FileUpload

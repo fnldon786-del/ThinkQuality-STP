@@ -9,10 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Plus, X } from "lucide-react"
-import { format } from "date-fns"
+import { Plus, X } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
@@ -394,23 +391,15 @@ export function JobCardForm({ onSuccess, initialData }: JobCardFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label>Due Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal bg-transparent">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.due_date ? format(formData.due_date, "PPP") : "Select due date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={formData.due_date}
-                  onSelect={(date) => handleInputChange("due_date", date)}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <Label htmlFor="due_date">Due Date</Label>
+            <Input
+              id="due_date"
+              type="date"
+              value={formData.due_date ? formData.due_date.toISOString().split("T")[0] : ""}
+              onChange={(e) => handleInputChange("due_date", e.target.value ? new Date(e.target.value) : undefined)}
+              className="w-full"
+              min={new Date().toISOString().split("T")[0]}
+            />
           </div>
 
           <div className="space-y-4">
