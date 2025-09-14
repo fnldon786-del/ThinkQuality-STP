@@ -8,7 +8,6 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Check if current user is authenticated and is an Admin or SuperAdmin
     const {
       data: { user },
       error: authError,
@@ -25,8 +24,8 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single()
 
-    if (profileError || !["Admin", "SuperAdmin"].includes(currentUserProfile?.role)) {
-      console.log("[v0] User is not Admin or SuperAdmin:", currentUserProfile?.role)
+    if (profileError || currentUserProfile?.role !== "Admin") {
+      console.log("[v0] User is not Admin:", currentUserProfile?.role)
       return NextResponse.json({ error: "Insufficient permissions - Admin role required" }, { status: 403 })
     }
 
@@ -149,7 +148,6 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Check if current user is authenticated and is an Admin or SuperAdmin
     const {
       data: { user },
       error: authError,
@@ -165,7 +163,7 @@ export async function GET(request: NextRequest) {
       .eq("id", user.id)
       .single()
 
-    if (profileError || !["Admin", "SuperAdmin"].includes(currentUserProfile?.role)) {
+    if (profileError || currentUserProfile?.role !== "Admin") {
       return NextResponse.json({ error: "Insufficient permissions - Admin role required" }, { status: 403 })
     }
 
