@@ -10,14 +10,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ArrowLeft, CalendarIcon } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { format } from "date-fns"
-import { cn } from "@/lib/utils"
 
 interface Company {
   id: string
@@ -41,7 +38,6 @@ export default function CreateMachinePage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -260,42 +256,17 @@ export default function CreateMachinePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Installation Date</Label>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !formData.installation_date && "text-muted-foreground",
-                        )}
-                        type="button"
-                        onClick={() => {
-                          console.log("[v0] Date picker button clicked, current state:", isDatePickerOpen)
-                          setIsDatePickerOpen(!isDatePickerOpen)
-                        }}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.installation_date ? (
-                          format(formData.installation_date, "PPP")
-                        ) : (
-                          <span>Pick installation date</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={formData.installation_date}
-                        onSelect={(date) => {
-                          console.log("[v0] Date selected:", date)
-                          setFormData((prev) => ({ ...prev, installation_date: date }))
-                          setIsDatePickerOpen(false)
-                        }}
-                        disabled={(date) => date > new Date()}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <Input
+                    type="date"
+                    value={formData.installation_date ? format(formData.installation_date, "yyyy-MM-dd") : ""}
+                    onChange={(e) => {
+                      console.log("[v0] Date input changed:", e.target.value)
+                      const selectedDate = e.target.value ? new Date(e.target.value) : undefined
+                      setFormData((prev) => ({ ...prev, installation_date: selectedDate }))
+                    }}
+                    max={format(new Date(), "yyyy-MM-dd")}
+                    className="w-full"
+                  />
                 </div>
 
                 <div className="space-y-2">
