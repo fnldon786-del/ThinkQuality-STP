@@ -9,7 +9,7 @@ import type { User } from "@supabase/supabase-js"
 
 interface Profile {
   role: string
-  email: string
+  cellphone: string
   username: string
 }
 
@@ -45,11 +45,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       setUser(user)
 
       try {
-        console.log("[v0] ProtectedRoute: Looking up profile for user:", user.id)
+        console.log("[v0] ProtectedRoute: Looking up profile for user:", user.email)
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role, email, username")
-          .eq("id", user.id)
+          .select("role, cellphone, username")
+          .eq("username", user.email?.split("@")[0] || "")
           .single()
 
         console.log("[v0] ProtectedRoute: Profile lookup result:", { profile, error: profileError })

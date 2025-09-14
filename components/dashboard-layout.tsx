@@ -19,11 +19,11 @@ import { useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 
 interface Profile {
-  id: string
-  email: string
-  full_name: string
+  username: string
+  cellphone: string
+  first_name: string
+  last_name: string
   role: string
-  company_name: string
 }
 
 interface Company {
@@ -52,22 +52,20 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       if (user) {
         setUser(user)
 
-        // Get user profile
-        const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("username", user.email?.split("@")[0] || "")
+          .single()
 
         if (profile) {
           setProfile(profile)
 
-          if (profile.company_name) {
-            const { data: companyData } = await supabase
-              .from("companies")
-              .select("*")
-              .eq("name", profile.company_name)
-              .single()
+          // For now, we'll use ThinkQuality as the default company
+          const { data: companyData } = await supabase.from("companies").select("*").eq("name", "ThinkQuality").single()
 
-            if (companyData) {
-              setCompany(companyData)
-            }
+          if (companyData) {
+            setCompany(companyData)
           }
         }
       }
@@ -84,7 +82,6 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const getRoleColor = (role: string) => {
     switch (role) {
       case "Admin":
-      case "SuperAdmin":
         return "bg-red-100 text-red-800"
       case "Technician":
         return "bg-blue-100 text-blue-800"
@@ -115,7 +112,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    {profile?.full_name?.charAt(0) || user?.email?.charAt(0) || "U"}
+                    {profile?.first_name?.charAt(0) || user?.email?.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -123,9 +120,9 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             <DropdownMenuContent className="w-56" align="end">
               <div className="flex items-center justify-start gap-2 p-2">
                 <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">{profile?.full_name || "User"}</p>
+                  <p className="font-medium">{profile ? `${profile.first_name} ${profile.last_name}` : "User"}</p>
                   <p className="text-xs text-muted-foreground">{user?.email}</p>
-                  {profile?.company_name && <p className="text-xs text-muted-foreground">{profile.company_name}</p>}
+                  {profile?.cellphone && <p className="text-xs text-muted-foreground">{profile.cellphone}</p>}
                 </div>
               </div>
               <DropdownMenuSeparator />

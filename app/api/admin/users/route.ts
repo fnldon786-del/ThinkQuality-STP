@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const { data: currentUserProfile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", user.id)
+      .eq("username", user.email?.split("@")[0] || "")
       .single()
 
     if (profileError || currentUserProfile?.role !== "Admin") {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log("[v0] Request body:", body)
 
-    const { username, first_name, last_name, password, role, company_id } = body
+    const { username, first_name, last_name, password, role, cellphone } = body
 
     // Validate required fields
     if (!username || !first_name || !last_name || !password || !role) {
@@ -100,12 +100,11 @@ export async function POST(request: NextRequest) {
       const { data: manualProfile, error: manualProfileError } = await adminSupabase
         .from("profiles")
         .insert({
-          id: authData.user.id,
           username: username,
           first_name: first_name,
           last_name: last_name,
           role: role,
-          email: internalEmail,
+          cellphone: cellphone || "",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -160,7 +159,7 @@ export async function GET(request: NextRequest) {
     const { data: currentUserProfile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", user.id)
+      .eq("username", user.email?.split("@")[0] || "")
       .single()
 
     if (profileError || currentUserProfile?.role !== "Admin") {

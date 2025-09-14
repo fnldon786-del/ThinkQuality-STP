@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
@@ -17,8 +17,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [showDashboardSelection, setShowDashboardSelection] = useState(false)
-  const [supabaseError, setSupabaseError] = useState(false)
   const router = useRouter()
 
   let supabase: any = null
@@ -32,11 +30,11 @@ export default function LoginPage() {
       console.log("[v0] Supabase client initialized successfully")
     } else {
       console.log("[v0] Supabase environment variables missing")
-      setSupabaseError(true)
+      setError("Database connection unavailable. Please check your connection and try again.")
     }
   } catch (err) {
     console.error("[v0] Supabase client initialization error:", err)
-    setSupabaseError(true)
+    setError("Database connection unavailable. Please check your connection and try again.")
   }
 
   useEffect(() => {
@@ -60,74 +58,7 @@ export default function LoginPage() {
         throw new Error("Database connection not available. Please check your connection and try again.")
       }
 
-      if (username === "Stpadmin" && password === "12345678") {
-        console.log("[v0] Super admin login attempt")
-
-        let { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: "admin@stp.com",
-          password: "12345678",
-        })
-
-        if (signInError && signInError.message.includes("Invalid login credentials")) {
-          console.log("[v0] Super admin user doesn't exist, creating...")
-
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: "admin@stp.com",
-            password: "12345678",
-            options: {
-              emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin,
-            },
-          })
-
-          if (signUpError) {
-            console.error("[v0] Sign up error:", signUpError)
-            throw signUpError
-          }
-
-          if (signUpData.user) {
-            console.log("[v0] Creating super admin profile...")
-            try {
-              const { error: profileError } = await supabase.from("profiles").insert({
-                id: signUpData.user.id,
-                username: "Stpadmin",
-                role: "SuperAdmin",
-                full_name: "Super Administrator",
-                company_name: "STP Engineering",
-                email: "admin@stp.com",
-              })
-
-              if (profileError) {
-                console.log("[v0] Profile creation error (table may not exist):", profileError)
-              }
-            } catch (profileErr) {
-              console.log("[v0] Profile creation failed (table may not exist):", profileErr)
-            }
-          }
-
-          // Try signing in again
-          const { data: retrySignIn, error: retryError } = await supabase.auth.signInWithPassword({
-            email: "admin@stp.com",
-            password: "12345678",
-          })
-
-          if (retryError) {
-            console.error("[v0] Retry sign in error:", retryError)
-            throw retryError
-          }
-          signInData = retrySignIn
-        } else if (signInError) {
-          console.error("[v0] Sign in error:", signInError)
-          throw signInError
-        }
-
-        console.log("[v0] Super admin login successful")
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        setShowDashboardSelection(true)
-        setIsLoading(false)
-        return
-      }
-
-      console.log("[v0] Regular user login attempt for:", username)
+      console.log("[v0] User login attempt for:", username)
 
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
@@ -141,7 +72,7 @@ export default function LoginPage() {
       }
 
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: profiles.email || `${username}@company.com`,
+        email: `${username}@internal.thinkquality.app`,
         password: password,
       })
 
@@ -172,30 +103,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleDashboardSelection = async (dashboard: string) => {
-    console.log("[v0] Super admin selected dashboard:", dashboard)
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      console.log("[v0] Session check before navigation:", session ? "Session exists" : "No session")
-
-      if (!session) {
-        console.log("[v0] No session found, redirecting to login")
-        setError("Session expired. Please login again.")
-        setShowDashboardSelection(false)
-        return
-      }
-
-      // Force a page refresh to ensure middleware picks up the session
-      window.location.href = `/${dashboard}`
-    } catch (err) {
-      console.error("[v0] Session check error:", err)
-      setError("Authentication error. Please login again.")
-      setShowDashboardSelection(false)
-    }
-  }
-
   if (!mounted) {
     console.log("[v0] Component not mounted yet, showing loading...")
     return (
@@ -208,65 +115,7 @@ export default function LoginPage() {
     )
   }
 
-  console.log("[v0] Rendering login page, showDashboardSelection:", showDashboardSelection)
-
-  if (showDashboardSelection) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <Card className="shadow-xl">
-            <CardHeader className="text-center space-y-4">
-              <div className="flex justify-center">
-                <Logo size="xl" showText={false} />
-              </div>
-              <div>
-                <CardTitle className="text-2xl font-bold text-gray-900">Select Dashboard</CardTitle>
-                <CardDescription className="text-gray-600">Choose which dashboard to access</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                onClick={() => handleDashboardSelection("admin")}
-                className="w-full h-12 text-left justify-start"
-                variant="outline"
-              >
-                <div>
-                  <div className="font-medium">Admin Dashboard</div>
-                  <div className="text-sm text-muted-foreground">Manage users, settings, and system overview</div>
-                </div>
-              </Button>
-
-              <Button
-                onClick={() => handleDashboardSelection("technician")}
-                className="w-full h-12 text-left justify-start"
-                variant="outline"
-              >
-                <div>
-                  <div className="font-medium">Technician Dashboard</div>
-                  <div className="text-sm text-muted-foreground">Job cards, SOPs, and maintenance tasks</div>
-                </div>
-              </Button>
-
-              <Button
-                onClick={() => handleDashboardSelection("customer")}
-                className="w-full h-12 text-left justify-start"
-                variant="outline"
-              >
-                <div>
-                  <div className="font-medium">Customer Dashboard</div>
-                  <div className="text-sm text-muted-foreground">Service requests and reports</div>
-                </div>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <span>Powered by ThinkQuality</span>
-        </div>
-      </div>
-    )
-  }
+  console.log("[v0] Rendering login page")
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
@@ -281,11 +130,9 @@ export default function LoginPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {supabaseError && (
+            {error && (
               <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-sm text-yellow-800">
-                  Database connection unavailable. Some features may not work properly.
-                </p>
+                <p className="text-sm text-yellow-800">{error}</p>
               </div>
             )}
 
@@ -316,7 +163,7 @@ export default function LoginPage() {
 
               {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{error}</div>}
 
-              <Button type="submit" className="w-full" disabled={isLoading || supabaseError}>
+              <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
@@ -326,16 +173,6 @@ export default function LoginPage() {
               <Link href="/auth/sign-up" className="text-blue-600 hover:underline font-medium">
                 Sign up
               </Link>
-            </div>
-
-            <div className="mt-4 p-3 bg-gray-50 rounded-md text-xs text-gray-600">
-              <p className="font-medium mb-1">Super Admin Login:</p>
-              <p>
-                Username: <span className="font-mono">Stpadmin</span>
-              </p>
-              <p>
-                Password: <span className="font-mono">12345678</span>
-              </p>
             </div>
           </CardContent>
         </Card>
