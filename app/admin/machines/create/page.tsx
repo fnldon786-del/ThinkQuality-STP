@@ -41,6 +41,7 @@ export default function CreateMachinePage() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -162,49 +163,8 @@ export default function CreateMachinePage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    value={formData.location}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
-                    placeholder="Machine location"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="company_id">Company</Label>
-                  <Select
-                    value={formData.company_id}
-                    onValueChange={(value) => {
-                      console.log("[v0] Company selected:", value)
-                      setFormData((prev) => ({ ...prev, company_id: value }))
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select company" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies.length === 0 ? (
-                        <SelectItem value="no-companies" disabled>
-                          No companies available
-                        </SelectItem>
-                      ) : (
-                        companies.map((company) => (
-                          <SelectItem key={company.id} value={company.id}>
-                            {company.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
                   <Label>Installation Date</Label>
-                  <Popover>
+                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -213,6 +173,7 @@ export default function CreateMachinePage() {
                           !formData.installation_date && "text-muted-foreground",
                         )}
                         type="button"
+                        onClick={() => setIsDatePickerOpen(true)}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {formData.installation_date
@@ -227,6 +188,7 @@ export default function CreateMachinePage() {
                         onSelect={(date) => {
                           console.log("[v0] Installation date selected:", date)
                           setFormData((prev) => ({ ...prev, installation_date: date }))
+                          setIsDatePickerOpen(false)
                         }}
                         disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
                         initialFocus
