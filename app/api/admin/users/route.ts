@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Check if current user is authenticated and is a Super Admin
+    // Check if current user is authenticated and is an Admin or SuperAdmin
     const {
       data: { user },
       error: authError,
@@ -19,16 +19,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verify the current user is a Super Admin
     const { data: currentUserProfile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single()
 
-    if (profileError || currentUserProfile?.role !== "Super Admin") {
-      console.log("[v0] User is not Super Admin:", currentUserProfile?.role)
-      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+    if (profileError || !["Admin", "SuperAdmin"].includes(currentUserProfile?.role)) {
+      console.log("[v0] User is not Admin or SuperAdmin:", currentUserProfile?.role)
+      return NextResponse.json({ error: "Insufficient permissions - Admin role required" }, { status: 403 })
     }
 
     const body = await request.json()
@@ -107,8 +106,7 @@ export async function POST(request: NextRequest) {
           first_name: first_name,
           last_name: last_name,
           role: role,
-          company_id: company_id || null,
-          email: null, // Don't store the internal email in profile
+          email: internalEmail,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -151,7 +149,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Check if current user is authenticated and is a Super Admin
+    // Check if current user is authenticated and is an Admin or SuperAdmin
     const {
       data: { user },
       error: authError,
@@ -161,23 +159,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verify the current user is a Super Admin
     const { data: currentUserProfile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single()
 
-    if (profileError || currentUserProfile?.role !== "Super Admin") {
-      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+    if (profileError || !["Admin", "SuperAdmin"].includes(currentUserProfile?.role)) {
+      return NextResponse.json({ error: "Insufficient permissions - Admin role required" }, { status: 403 })
     }
 
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select(`
-        *,
-        company:company_id(name, contact_email)
-      `)
+      .select("*")
       .order("created_at", { ascending: false })
 
     if (usersError) {
