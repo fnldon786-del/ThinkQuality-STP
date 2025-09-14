@@ -67,12 +67,10 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient()
 
-    // Create a unique email for authentication (internal use only)
     const internalEmail = `${username.toLowerCase()}@internal.thinkquality.app`
 
     console.log("[v0] Creating auth user with email:", internalEmail)
 
-    // Create the auth user using admin client
     const { data: authData, error: createError } = await adminSupabase.auth.admin.createUser({
       email: internalEmail,
       password: password,
@@ -87,6 +85,9 @@ export async function POST(request: NextRequest) {
 
     if (createError) {
       console.log("[v0] Auth user creation failed:", createError)
+      if (createError.message.includes("already registered")) {
+        return NextResponse.json({ error: "User with this email already exists" }, { status: 400 })
+      }
       return NextResponse.json({ error: createError.message }, { status: 400 })
     }
 
@@ -97,35 +98,47 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Auth user created successfully:", authData.user.id)
 
-    const { data: manualProfile, error: manualProfileError } = await adminSupabase
-      .from("profiles")
-      .insert({
-        id: authData.user.id,
-        username: username,
-        first_name: first_name,
-        last_name: last_name,
-        role: role,
-        company_id: company_id || null,
-        email: null, // Don't store the internal email in profile
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+    try {
+      const { data: manualProfile, error: manualProfileError } = await adminSupabase
+        .from("profiles")
+        .insert({
+          id: authData.user.id,
+          username: username,
+          first_name: first_name,
+          last_name: last_name,
+          role: role,
+          company_id: company_id || null,
+          email: null, // Don't store the internal email in profile
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
 
-    if (manualProfileError) {
-      console.log("[v0] Manual profile creation failed:", manualProfileError)
+      if (manualProfileError) {
+        console.log("[v0] Manual profile creation failed:", manualProfileError)
+        // Clean up the auth user if profile creation fails
+        console.log("[v0] Cleaning up auth user due to profile creation failure")
+        await adminSupabase.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json(
+          { error: `Failed to create user profile: ${manualProfileError.message}` },
+          { status: 500 },
+        )
+      }
+
+      console.log("[v0] Profile created successfully:", manualProfile)
+      return NextResponse.json({
+        success: true,
+        user: manualProfile,
+        message: `User ${first_name} ${last_name} created successfully`,
+      })
+    } catch (profileError) {
+      console.log("[v0] Profile creation exception:", profileError)
       // Clean up the auth user if profile creation fails
+      console.log("[v0] Cleaning up auth user due to profile creation exception")
       await adminSupabase.auth.admin.deleteUser(authData.user.id)
       return NextResponse.json({ error: "Failed to create user profile" }, { status: 500 })
     }
-
-    console.log("[v0] Profile created successfully:", manualProfile)
-    return NextResponse.json({
-      success: true,
-      user: manualProfile,
-      message: "User created successfully",
-    })
   } catch (error) {
     console.log("[v0] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
