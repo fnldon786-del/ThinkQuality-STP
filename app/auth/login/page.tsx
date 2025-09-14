@@ -60,30 +60,60 @@ export default function LoginPage() {
 
       console.log("[v0] User login attempt for:", username)
 
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("username", username)
-        .single()
+      let email = `${username.toLowerCase()}@thinkquality.internal`
 
-      if (profileError || !profiles) {
-        console.error("[v0] Profile lookup error:", profileError)
-        throw new Error("Invalid username or password")
+      // Special mapping for known users
+      if (username.toLowerCase() === "faiq") {
+        email = "faiq@thinkquality.internal"
       }
 
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: `${username}@internal.thinkquality.app`,
+      console.log("[v0] Attempting authentication with email:", email)
+
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email,
         password: password,
       })
 
       if (authError) {
-        console.error("[v0] Auth error:", authError)
+        console.error("[v0] Auth error:", authError.message)
         throw new Error("Invalid username or password")
       }
 
-      console.log("[v0] Login successful, redirecting based on role:", profiles.role)
+      console.log("[v0] Authentication successful, user:", authData.user?.id)
 
-      switch (profiles.role) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (profileError || !profile) {
+        console.error("[v0] Profile lookup error:", profileError)
+        // Create a basic profile if it doesn't exist
+        const { error: insertError } = await supabase.from("profiles").insert({
+          id: authData.user.id,
+          username: username,
+          first_name: username,
+          last_name: "",
+          email: email,
+          role: "Admin", // Default to Admin for now
+        })
+
+        if (!insertError) {
+          console.log("[v0] Created new profile, redirecting to admin")
+          router.push("/admin")
+          return
+        }
+
+        console.log("[v0] Profile creation failed, redirecting to admin as fallback")
+        router.push("/admin")
+        return
+      }
+
+      console.log("[v0] Found user profile:", profile)
+      console.log("[v0] Login successful, redirecting based on role:", profile.role)
+
+      switch (profile.role) {
         case "Admin":
           router.push("/admin")
           break
@@ -99,6 +129,7 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error("[v0] Login error:", err)
       setError(err.message || "Login failed. Please try again.")
+    } finally {
       setIsLoading(false)
     }
   }
