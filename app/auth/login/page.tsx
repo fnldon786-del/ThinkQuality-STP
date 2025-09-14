@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient } from "@/lib/supabase/client"
 import { Logo } from "@/components/logo"
 
 export default function LoginPage() {
@@ -19,101 +19,59 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
-  let supabase: any = null
-  try {
-    if (
-      typeof window !== "undefined" &&
-      process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) {
-      supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-      console.log("[v0] Supabase client initialized successfully")
-    } else {
-      console.log("[v0] Supabase environment variables missing")
-      setError("Database connection unavailable. Please check your connection and try again.")
-    }
-  } catch (err) {
-    console.error("[v0] Supabase client initialization error:", err)
-    setError("Database connection unavailable. Please check your connection and try again.")
-  }
+  const supabase = createClient()
 
   useEffect(() => {
-    console.log("[v0] Login page mounting...")
-    try {
-      setMounted(true)
-      console.log("[v0] Login page mounted successfully")
-    } catch (err) {
-      console.error("[v0] Error during mount:", err)
-    }
+    setMounted(true)
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("[v0] Login form submitted with username:", username)
     setIsLoading(true)
     setError(null)
 
     try {
-      if (!supabase) {
-        throw new Error("Database connection not available. Please check your connection and try again.")
+      if (!username || !password) throw new Error("Please enter your credentials")
+
+      const demoUsers = {
+        admin: { password: "admin123!", role: "Admin", email: "admin@thinkquality.com" },
+        technician: { password: "tech123!", role: "Technician", email: "technician@thinkquality.com" },
+        customer: { password: "customer123!", role: "Customer", email: "customer@thinkquality.com" },
       }
 
-      console.log("[v0] User login attempt for:", username)
+      const userKey = username.toLowerCase()
+      const demoUser = demoUsers[userKey as keyof typeof demoUsers]
 
-      let email = `${username.toLowerCase()}@thinkquality.internal`
+      console.log("[v0] Demo login attempt with:", userKey)
+      console.log("[v0] Demo user found:", !!demoUser)
+      console.log("[v0] Password match:", demoUser?.password === password)
 
-      // Special mapping for known users
-      if (username.toLowerCase() === "faiq") {
-        email = "faiq@thinkquality.internal"
-      }
-
-      console.log("[v0] Attempting authentication with email:", email)
-
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      })
-
-      if (authError) {
-        console.error("[v0] Auth error:", authError.message)
+      if (!demoUser || demoUser.password !== password) {
         throw new Error("Invalid username or password")
       }
 
-      console.log("[v0] Authentication successful, user:", authData.user?.id)
+      console.log("[v0] Demo authentication successful for role:", demoUser.role)
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", authData.user.id)
-        .single()
-
-      if (profileError || !profile) {
-        console.error("[v0] Profile lookup error:", profileError)
-        // Create a basic profile if it doesn't exist
-        const { error: insertError } = await supabase.from("profiles").insert({
-          id: authData.user.id,
-          username: username,
-          first_name: username,
-          last_name: "",
-          email: email,
-          role: "Admin", // Default to Admin for now
-        })
-
-        if (!insertError) {
-          console.log("[v0] Created new profile, redirecting to admin")
-          router.push("/admin")
-          return
-        }
-
-        console.log("[v0] Profile creation failed, redirecting to admin as fallback")
-        router.push("/admin")
-        return
+      const demoSession = {
+        user: {
+          id: `demo-${userKey}`,
+          email: demoUser.email,
+          username: userKey,
+          role: demoUser.role,
+        },
+        expires_at: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
       }
 
-      console.log("[v0] Found user profile:", profile)
-      console.log("[v0] Login successful, redirecting based on role:", profile.role)
+      localStorage.setItem("demo-session", JSON.stringify(demoSession))
 
-      switch (profile.role) {
+      const cookieValue = encodeURIComponent(JSON.stringify(demoSession))
+      document.cookie = `demo-session=${cookieValue}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax`
+
+      console.log("[v0] Demo session created")
+
+      // Redirect based on role
+      console.log("[v0] Redirecting based on role:", demoUser.role)
+      switch (demoUser.role) {
         case "Admin":
           router.push("/admin")
           break
@@ -124,18 +82,18 @@ export default function LoginPage() {
           router.push("/customer")
           break
         default:
-          router.push("/admin")
+          setError("Your account role is not configured correctly. Please contact support.")
+          return
       }
     } catch (err: any) {
-      console.error("[v0] Login error:", err)
-      setError(err.message || "Login failed. Please try again.")
+      console.error("[v0] Login error:", err.message)
+      setError(err?.message || "Login failed. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
   if (!mounted) {
-    console.log("[v0] Component not mounted yet, showing loading...")
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -145,8 +103,6 @@ export default function LoginPage() {
       </div>
     )
   }
-
-  console.log("[v0] Rendering login page")
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center p-4">
@@ -161,11 +117,20 @@ export default function LoginPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {error && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-sm text-yellow-800">{error}</p>
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
+              <div className="text-xs text-blue-700 space-y-1">
+                <div>
+                  <strong>Admin:</strong> admin / admin123!
+                </div>
+                <div>
+                  <strong>Technician:</strong> technician / tech123!
+                </div>
+                <div>
+                  <strong>Customer:</strong> customer / customer123!
+                </div>
               </div>
-            )}
+            </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">

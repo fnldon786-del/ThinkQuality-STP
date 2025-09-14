@@ -1,32 +1,86 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
+
+async function authenticateUser(request: NextRequest) {
+  // First check for demo session
+  const cookieStore = await cookies()
+  const demoSessionCookie = cookieStore.get("demo-session")
+
+  if (demoSessionCookie) {
+    try {
+      const demoSession = JSON.parse(decodeURIComponent(demoSessionCookie.value))
+      if (demoSession.user && demoSession.expires_at > Date.now()) {
+        console.log("[v0] API: Demo user authenticated:", demoSession.user.role)
+        return { user: demoSession.user, isDemo: true }
+      }
+    } catch (error) {
+      console.log("[v0] API: Demo session parse error:", error)
+    }
+  }
+
+  // Fall back to Supabase authentication
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return { user: null, isDemo: false, error: authError }
+  }
+
+  // Get user profile for Supabase users
+  const { data: currentUserProfile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("username", user.email?.split("@")[0] || "")
+    .single()
+
+  if (profileError) {
+    return { user: null, isDemo: false, error: profileError }
+  }
+
+  return { user: { ...user, role: currentUserProfile.role }, isDemo: false }
+}
 
 export async function POST(request: NextRequest) {
   console.log("[v0] User creation API called")
 
   try {
-    const supabase = await createClient()
+    const authResult = await authenticateUser(request)
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      console.log("[v0] Authentication failed:", authError?.message)
+    if (!authResult.user) {
+      console.log("[v0] Authentication failed:", authResult.error?.message)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: currentUserProfile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("username", user.email?.split("@")[0] || "")
-      .single()
-
-    if (profileError || currentUserProfile?.role !== "Admin") {
-      console.log("[v0] User is not Admin:", currentUserProfile?.role)
+    if (authResult.user.role !== "Admin") {
+      console.log("[v0] User is not Admin:", authResult.user.role)
       return NextResponse.json({ error: "Insufficient permissions - Admin role required" }, { status: 403 })
+    }
+
+    if (authResult.isDemo) {
+      const body = await request.json()
+      console.log("[v0] Demo user creation request:", body)
+
+      // Simulate user creation for demo
+      const mockUser = {
+        username: body.username,
+        first_name: body.first_name,
+        last_name: body.last_name,
+        role: body.role,
+        cellphone: body.cellphone || "",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      return NextResponse.json({
+        success: true,
+        user: mockUser,
+        message: `Demo: User ${body.first_name} ${body.last_name} created successfully`,
+      })
     }
 
     const body = await request.json()
@@ -45,6 +99,8 @@ export async function POST(request: NextRequest) {
       console.log("[v0] Password too short")
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 })
     }
+
+    const supabase = await createClient() // Declare supabase variable here
 
     // Check if username already exists
     const { data: existingUser, error: checkError } = await supabase
@@ -145,26 +201,57 @@ export async function GET(request: NextRequest) {
   console.log("[v0] Get users API called")
 
   try {
-    const supabase = await createClient()
+    const authResult = await authenticateUser(request)
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    if (!authResult.user) {
+      console.log("[v0] Authentication failed:", authResult.error?.message)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: currentUserProfile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("username", user.email?.split("@")[0] || "")
-      .single()
-
-    if (profileError || currentUserProfile?.role !== "Admin") {
+    if (authResult.user.role !== "Admin") {
+      console.log("[v0] User is not Admin:", authResult.user.role)
       return NextResponse.json({ error: "Insufficient permissions - Admin role required" }, { status: 403 })
     }
+
+    if (authResult.isDemo) {
+      console.log("[v0] Returning demo users data")
+      const mockUsers = [
+        {
+          id: "1",
+          username: "admin",
+          first_name: "Admin",
+          last_name: "User",
+          role: "Admin",
+          cellphone: "555-0001",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        {
+          id: "2",
+          username: "technician",
+          first_name: "Tech",
+          last_name: "User",
+          role: "Technician",
+          cellphone: "555-0002",
+          created_at: "2024-01-02T00:00:00Z",
+          updated_at: "2024-01-02T00:00:00Z",
+        },
+        {
+          id: "3",
+          username: "manager",
+          first_name: "Manager",
+          last_name: "User",
+          role: "Manager",
+          cellphone: "555-0003",
+          created_at: "2024-01-03T00:00:00Z",
+          updated_at: "2024-01-03T00:00:00Z",
+        },
+      ]
+
+      return NextResponse.json({ users: mockUsers })
+    }
+
+    const supabase = await createClient()
 
     const { data: users, error: usersError } = await supabase
       .from("profiles")
