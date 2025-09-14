@@ -269,6 +269,10 @@ export default function CreateMachinePage() {
                           !formData.installation_date && "text-muted-foreground",
                         )}
                         type="button"
+                        onClick={() => {
+                          console.log("[v0] Date picker button clicked, current state:", isDatePickerOpen)
+                          setIsDatePickerOpen(!isDatePickerOpen)
+                        }}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {formData.installation_date ? (
@@ -283,6 +287,7 @@ export default function CreateMachinePage() {
                         mode="single"
                         selected={formData.installation_date}
                         onSelect={(date) => {
+                          console.log("[v0] Date selected:", date)
                           setFormData((prev) => ({ ...prev, installation_date: date }))
                           setIsDatePickerOpen(false)
                         }}
